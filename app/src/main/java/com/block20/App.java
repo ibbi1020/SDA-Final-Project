@@ -4,27 +4,38 @@
  */
 package com.block20;
 
+import com.block20.views.StaffPortalView;
 import javafx.application.Application;
 import javafx.scene.Scene;
-import javafx.scene.control.Label;
-import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
 
+/**
+ * Main application class for Block20 Gym Management System
+ * Initializes and launches the JavaFX application
+ */
 public class App extends Application {
     
     @Override
     public void start(Stage primaryStage) {
-        // Create welcome label
-        Label label = new Label("Welcome to Block20 Gym Management System");
-        label.setStyle("-fx-font-size: 18px; -fx-font-weight: bold;");
+        // For now, directly load Staff Portal with hardcoded user
+        // TODO: Implement login screen and authentication
+        String staffName = "Sarah Johnson";
+        String staffRole = "STAFF";
         
-        // Create root layout
-        StackPane root = new StackPane(label);
-        Scene scene = new Scene(root, 600, 400);
+        // Create Staff Portal view
+        StaffPortalView staffPortal = new StaffPortalView(staffName, staffRole);
+        
+        // Create scene
+        Scene scene = new Scene(staffPortal.getView(), 1400, 900);
+        
+        // Load stylesheet
+        String css = getClass().getResource("/com/block20/styles/main.css").toExternalForm();
+        scene.getStylesheets().add(css);
         
         // Configure primary stage
-        primaryStage.setTitle("Block20 - Gym Management");
+        primaryStage.setTitle("Block20 - Gym Management System");
         primaryStage.setScene(scene);
+        primaryStage.setMaximized(true);
         primaryStage.show();
     }
 
