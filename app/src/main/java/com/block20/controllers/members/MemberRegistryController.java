@@ -9,8 +9,8 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import java.util.function.Consumer;
 
-public class MemberRegistryController {
-    private VBox mainContainer;
+public class MemberRegistryController extends ScrollPane {
+    private VBox contentContainer;
     private TableView<Member> membersTable;
     private ObservableList<Member> allMembers;
     private ObservableList<Member> filteredMembers;
@@ -28,16 +28,26 @@ public class MemberRegistryController {
     }
 
     private void initialize() {
-        mainContainer = new VBox(24);
-        mainContainer.getStyleClass().add("main-content");
-        mainContainer.setPadding(new Insets(32));
+        // Configure ScrollPane
+        setFitToWidth(true);
+        setFitToHeight(false);
+        setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        getStyleClass().add("content-scroll-pane");
+        
+        contentContainer = new VBox(24);
+        contentContainer.getStyleClass().add("main-content");
+        contentContainer.setPadding(new Insets(32));
 
-        mainContainer.getChildren().addAll(
+        contentContainer.getChildren().addAll(
             createHeader(),
             createSearchAndFilters(),
             createStatsBar(),
             createMembersTable()
         );
+        
+        // Set content
+        setContent(contentContainer);
     }
 
     private HBox createHeader() {
@@ -495,10 +505,6 @@ public class MemberRegistryController {
         );
 
         filteredMembers.addAll(allMembers);
-    }
-
-    public VBox getView() {
-        return mainContainer;
     }
 
     // Member data class

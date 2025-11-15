@@ -12,8 +12,8 @@ import javafx.util.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
-public class CheckInController {
-    private VBox mainContainer;
+public class CheckInController extends ScrollPane {
+    private VBox contentContainer;
     private TextField searchField;
     private VBox searchResultsBox;
     private VBox recentActivityBox;
@@ -30,16 +30,26 @@ public class CheckInController {
     }
 
     private void initialize() {
-        mainContainer = new VBox(24);
-        mainContainer.getStyleClass().add("main-content");
-        mainContainer.setPadding(new Insets(32));
+        // Configure ScrollPane
+        setFitToWidth(true);
+        setFitToHeight(false);
+        setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        getStyleClass().add("content-scroll-pane");
+        
+        contentContainer = new VBox(24);
+        contentContainer.getStyleClass().add("main-content");
+        contentContainer.setPadding(new Insets(32));
 
-        mainContainer.getChildren().addAll(
+        contentContainer.getChildren().addAll(
             createHeader(),
             createOccupancyCard(),
             createSearchSection(),
             createRecentActivitySection()
         );
+        
+        // Set content
+        setContent(contentContainer);
     }
 
     private VBox createHeader() {
@@ -454,10 +464,6 @@ public class CheckInController {
             new CheckInRecord("M002", "Sarah Johnson", "Check In", LocalDateTime.now().minusMinutes(35).format(formatter)),
             new CheckInRecord("M010", "Jennifer White", "Check Out", LocalDateTime.now().minusMinutes(47).format(formatter))
         );
-    }
-
-    public VBox getView() {
-        return mainContainer;
     }
 
     // Member search result class

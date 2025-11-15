@@ -25,7 +25,8 @@ import java.util.function.Consumer;
  */
 public class RenewalsController {
     
-    private StackPane mainContainer;
+    private ScrollPane mainContainer;
+    private StackPane viewContainer; // Container for switching views
     private VBox pendingRenewalsView;
     private StackPane renewalProcessView;
     private Consumer<String> navigationHandler;
@@ -48,20 +49,32 @@ public class RenewalsController {
      * Initialize the main view
      */
     private void initializeView() {
-        mainContainer = new StackPane();
-        mainContainer.getStyleClass().add("renewals-container");
+        // Create ScrollPane container
+        mainContainer = new ScrollPane();
+        mainContainer.setFitToWidth(true);
+        mainContainer.setFitToHeight(false);
+        mainContainer.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        mainContainer.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        mainContainer.getStyleClass().add("content-scroll-pane");
+        
+        // Create content container (StackPane for switching views)
+        viewContainer = new StackPane();
+        viewContainer.getStyleClass().add("renewals-container");
         
         // Create pending renewals list view
         pendingRenewalsView = createPendingRenewalsView();
         
         // Show pending renewals by default
-        mainContainer.getChildren().add(pendingRenewalsView);
+        viewContainer.getChildren().add(pendingRenewalsView);
+        
+        // Set content to ScrollPane
+        mainContainer.setContent(viewContainer);
     }
     
     /**
-     * Get the main view
+     * Get the main view (ScrollPane)
      */
-    public StackPane getView() {
+    public ScrollPane getView() {
         return mainContainer;
     }
     
@@ -343,8 +356,8 @@ public class RenewalsController {
         
         // Create and show renewal wizard
         renewalProcessView = createRenewalWizard();
-        mainContainer.getChildren().clear();
-        mainContainer.getChildren().add(renewalProcessView);
+        viewContainer.getChildren().clear();
+        viewContainer.getChildren().add(renewalProcessView);
     }
     
     /**
@@ -1066,8 +1079,8 @@ public class RenewalsController {
      */
     private void returnToPendingRenewals() {
         currentRenewal = null;
-        mainContainer.getChildren().clear();
-        mainContainer.getChildren().add(pendingRenewalsView);
+        viewContainer.getChildren().clear();
+        viewContainer.getChildren().add(pendingRenewalsView);
     }
     
     /**

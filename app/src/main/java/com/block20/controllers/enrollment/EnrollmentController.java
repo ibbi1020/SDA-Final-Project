@@ -13,8 +13,8 @@ import java.util.function.Consumer;
  * Complete Enrollment Wizard Controller
  * Implements 5-step enrollment flow: Member Info → Plan Selection → Review → Payment → Confirmation
  */
-public class EnrollmentController {
-    private VBox mainContainer;
+public class EnrollmentController extends ScrollPane {
+    private VBox wizardContainer;
     private StackPane contentArea;
     private HBox navigationButtons;
     private HBox progressIndicator;
@@ -33,15 +33,25 @@ public class EnrollmentController {
     }
 
     private void initialize() {
-        mainContainer = new VBox(0);
-        mainContainer.getStyleClass().add("enrollment-wizard");
+        // Configure ScrollPane
+        setFitToWidth(true);
+        setFitToHeight(false);
+        setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        getStyleClass().add("content-scroll-pane");
         
-        mainContainer.getChildren().addAll(
+        wizardContainer = new VBox(0);
+        wizardContainer.getStyleClass().add("enrollment-wizard");
+        
+        wizardContainer.getChildren().addAll(
             createHeader(),
             createProgressIndicator(),
             createContentArea(),
             createNavigationButtons()
         );
+        
+        // Set content
+        setContent(wizardContainer);
         
         showStep(1);
     }
@@ -978,10 +988,6 @@ public class EnrollmentController {
         alert.setHeaderText(null);
         alert.setContentText(message);
         alert.showAndWait();
-    }
-
-    public VBox getView() {
-        return mainContainer;
     }
 
     // Enrollment data class

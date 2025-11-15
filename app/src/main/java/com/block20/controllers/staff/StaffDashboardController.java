@@ -17,9 +17,9 @@ import java.time.format.DateTimeFormatter;
  * Controller for the Staff Dashboard view
  * Displays key metrics, quick actions, and today's alerts
  */
-public class StaffDashboardController {
+public class StaffDashboardController extends ScrollPane {
     
-    private VBox rootView;
+    private VBox contentContainer;
     private final String staffName;
     
     public StaffDashboardController(String staffName) {
@@ -31,22 +31,27 @@ public class StaffDashboardController {
      * Initialize the dashboard view with all components
      */
     private void initializeView() {
-        rootView = new VBox(24);
-        rootView.getStyleClass().add("content-area");
+        // Configure ScrollPane
+        setFitToWidth(true);
+        setFitToHeight(false);
+        setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        getStyleClass().add("content-scroll-pane");
         
-        // Create scroll pane for content
-        ScrollPane scrollPane = new ScrollPane(rootView);
-        scrollPane.setFitToWidth(true);
-        scrollPane.getStyleClass().add("scroll-pane");
+        contentContainer = new VBox(24);
+        contentContainer.getStyleClass().add("content-area");
         
         // Add all dashboard sections
-        rootView.getChildren().addAll(
+        contentContainer.getChildren().addAll(
             createHeader(),
             createStatsSection(),
             createQuickActionsSection(),
             createAlertsSection(),
             createOccupancySection()
         );
+        
+        // Set content
+        setContent(contentContainer);
     }
     
     /**
@@ -269,12 +274,5 @@ public class StaffDashboardController {
     private void handleQuickAction(String action) {
         System.out.println("Quick action clicked: " + action);
         // TODO: Implement navigation to respective screens
-    }
-    
-    /**
-     * Get the root view for this controller
-     */
-    public VBox getView() {
-        return rootView;
     }
 }

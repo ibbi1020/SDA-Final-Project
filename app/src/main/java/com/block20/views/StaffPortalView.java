@@ -11,6 +11,12 @@ import com.block20.controllers.members.MemberRegistryController;
 import com.block20.controllers.members.CheckInController;
 import com.block20.controllers.enrollment.EnrollmentController;
 import com.block20.controllers.renewals.RenewalsController;
+import com.block20.controllers.trainers.TrainerRegistryController;
+import com.block20.controllers.trainers.TrainingSessionsController;
+import com.block20.controllers.equipment.EquipmentInventoryController;
+import com.block20.controllers.equipment.MaintenanceScheduleController;
+import com.block20.controllers.FinancialReportsController;
+import com.block20.controllers.OperationalReportsController;
 import javafx.scene.control.Label;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.Priority;
@@ -110,7 +116,7 @@ public class StaffPortalView {
      */
     private void showDashboard() {
         StaffDashboardController dashboard = new StaffDashboardController(staffName);
-        setContent(dashboard.getView());
+        setContent(dashboard);
     }
     
     /**
@@ -118,7 +124,7 @@ public class StaffPortalView {
      */
     private void showCheckIn() {
         CheckInController checkInController = new CheckInController();
-        setContent(checkInController.getView());
+        setContent(checkInController);
     }
     
     /**
@@ -126,7 +132,7 @@ public class StaffPortalView {
      */
     private void showMembersRegistry() {
         MemberRegistryController memberRegistry = new MemberRegistryController(this::handleNavigation);
-        setContent(memberRegistry.getView());
+        setContent(memberRegistry);
     }
     
     /**
@@ -134,7 +140,7 @@ public class StaffPortalView {
      */
     private void showEnrollmentNew() {
         EnrollmentController enrollmentController = new EnrollmentController(this::handleNavigation);
-        setContent(enrollmentController.getView());
+        setContent(enrollmentController);
     }
     
     /**
@@ -149,42 +155,48 @@ public class StaffPortalView {
      * Show trainer registry view (combines register and manage trainers)
      */
     private void showTrainersRegistry() {
-        showPlaceholder("Trainer Registry");
+        TrainerRegistryController trainerRegistryController = new TrainerRegistryController(this::handleNavigation);
+        setContent(trainerRegistryController);
     }
     
     /**
      * Show training sessions view (combines view sessions and schedule)
      */
     private void showTrainersSessions() {
-        showPlaceholder("Training Sessions");
+        TrainingSessionsController trainingSessionsController = new TrainingSessionsController(this::handleNavigation);
+        setContent(trainingSessionsController);
     }
     
     /**
      * Show equipment inventory view (includes add equipment)
      */
     private void showEquipmentInventory() {
-        showPlaceholder("Equipment Inventory");
+        EquipmentInventoryController equipmentInventoryController = new EquipmentInventoryController(this::handleNavigation);
+        setContent(equipmentInventoryController);
     }
     
     /**
      * Show maintenance schedule view
      */
     private void showEquipmentMaintenance() {
-        showPlaceholder("Maintenance Schedule");
+        MaintenanceScheduleController maintenanceScheduleController = new MaintenanceScheduleController(this::handleNavigation);
+        setContent(maintenanceScheduleController);
     }
     
     /**
      * Show financial reports view
      */
     private void showReportsFinancial() {
-        showPlaceholder("Financial Reports");
+        FinancialReportsController financialReportsController = new FinancialReportsController(this::handleNavigation);
+        setContent(financialReportsController);
     }
     
     /**
      * Show operational reports view
      */
     private void showReportsOperational() {
-        showPlaceholder("Operational Reports");
+        OperationalReportsController operationalReportsController = new OperationalReportsController(this::handleNavigation);
+        setContent(operationalReportsController);
     }
     
     /**
