@@ -4,6 +4,7 @@
  */
 package com.block20.views;
 
+import com.block20.services.MemberService;
 import com.block20.components.SidebarNavigation;
 import com.block20.components.TopNavigation;
 import com.block20.controllers.staff.StaffDashboardController;
@@ -36,9 +37,12 @@ public class StaffPortalView {
     private final String staffName;
     private final String staffRole;
     
-    public StaffPortalView(String staffName, String staffRole) {
+    private final MemberService memberService; 
+    
+    public StaffPortalView(String staffName, String staffRole, MemberService memberService) {
         this.staffName = staffName;
         this.staffRole = staffRole;
+        this.memberService = memberService;
         initializeView();
     }
     
@@ -130,10 +134,11 @@ public class StaffPortalView {
     /**
      * Show member registry view (combines search, create, attendance)
      */
-    private void showMembersRegistry() {
-        MemberRegistryController memberRegistry = new MemberRegistryController(this::handleNavigation);
-        setContent(memberRegistry);
-    }
+private void showMembersRegistry() {
+    // Pass the service (the "Brain") to the controller
+    MemberRegistryController memberRegistry = new MemberRegistryController(this::handleNavigation, this.memberService);
+    setContent(memberRegistry);
+}
     
     /**
      * Show new enrollment view
