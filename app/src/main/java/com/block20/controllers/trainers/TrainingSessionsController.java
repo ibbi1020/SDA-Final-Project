@@ -4,17 +4,27 @@
  */
 package com.block20.controllers.trainers;
 
+import com.block20.models.Trainer;
+import com.block20.models.TrainerAvailabilitySlot;
+import com.block20.models.TrainingSession;
+import com.block20.services.TrainerScheduleService;
+import com.block20.services.TrainerService;
+import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
+import javafx.util.StringConverter;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
-import java.util.Random;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 /**
  * Controller for training sessions management:
@@ -27,6 +37,18 @@ public class TrainingSessionsController extends ScrollPane {
     
     private VBox contentContainer;
     private Consumer<String> navigationHandler;
+    private final TrainerService trainerService;
+    private final TrainerScheduleService trainerScheduleService;
+    private List<Trainer> availableTrainers = Collections.emptyList();
+    private VBox sessionsTableRows;
+    private Label todaysSessionsValue;
+    private Label weeklySessionsValue;
+    private Label monthlySessionsValue;
+    private Label revenueValue;
+    private ToggleButton upcomingTab;
+    private ToggleButton todayTab;
+    private ToggleButton completedTab;
+    private ToggleButton cancelledTab;
     
     // Current filter state
     private String currentFilter = "Upcoming"; // Upcoming, Completed, Cancelled, All
@@ -34,8 +56,12 @@ public class TrainingSessionsController extends ScrollPane {
     /**
      * Constructor
      */
-    public TrainingSessionsController(Consumer<String> navigationHandler) {
+    public TrainingSessionsController(Consumer<String> navigationHandler,
+                                      TrainerService trainerService,
+                                      TrainerScheduleService trainerScheduleService) {
         this.navigationHandler = navigationHandler;
+        this.trainerService = trainerService;
+        this.trainerScheduleService = trainerScheduleService;
         initializeView();
     }
     
@@ -70,6 +96,7 @@ public class TrainingSessionsController extends ScrollPane {
         VBox tableSection = createSessionsTable();
         
         contentContainer.getChildren().addAll(header, actionBar, filterTabs, statsBar, tableSection);
+        loadTrainerData();
         
         // Set content
         setContent(contentContainer);
@@ -119,7 +146,11 @@ public class TrainingSessionsController extends ScrollPane {
         scheduleButton.getStyleClass().add("btn-primary");
         scheduleButton.setOnAction(e -> showScheduleSessionDialog());
         
-        actionBar.getChildren().addAll(dateLabel, datePicker, spacer, scheduleButton);
+        Button manageAvailabilityButton = new Button("Manage Availability");
+        manageAvailabilityButton.getStyleClass().add("btn-secondary");
+        manageAvailabilityButton.setOnAction(e -> showAvailabilityManager());
+        
+        actionBar.getChildren().addAll(dateLabel, datePicker, spacer, manageAvailabilityButton, scheduleButton);
         
         return actionBar;
     }
@@ -134,16 +165,16 @@ public class TrainingSessionsController extends ScrollPane {
         
         ToggleGroup filterGroup = new ToggleGroup();
         
-        ToggleButton upcomingTab = createFilterTab("Upcoming (12)", filterGroup, true);
+        upcomingTab = createFilterTab("Upcoming (0)", filterGroup, true);
         upcomingTab.setOnAction(e -> applyFilter("Upcoming"));
         
-        ToggleButton todayTab = createFilterTab("Today (5)", filterGroup, false);
+        todayTab = createFilterTab("Today (0)", filterGroup, false);
         todayTab.setOnAction(e -> applyFilter("Today"));
         
-        ToggleButton completedTab = createFilterTab("Completed (48)", filterGroup, false);
+        completedTab = createFilterTab("Completed (0)", filterGroup, false);
         completedTab.setOnAction(e -> applyFilter("Completed"));
         
-        ToggleButton cancelledTab = createFilterTab("Cancelled (3)", filterGroup, false);
+        cancelledTab = createFilterTab("Cancelled (0)", filterGroup, false);
         cancelledTab.setOnAction(e -> applyFilter("Cancelled"));
         
         tabsBox.getChildren().addAll(upcomingTab, todayTab, completedTab, cancelledTab);
@@ -170,12 +201,17 @@ public class TrainingSessionsController extends ScrollPane {
         statsBar.setAlignment(Pos.CENTER_LEFT);
         statsBar.setPadding(new Insets(15));
         statsBar.getStyleClass().add("stats-bar");
-        
+
+        todaysSessionsValue = createStatValueLabel("#3B82F6");
+        weeklySessionsValue = createStatValueLabel("#10B981");
+        monthlySessionsValue = createStatValueLabel("#8B5CF6");
+        revenueValue = createStatValueLabel("#F59E0B");
+
         statsBar.getChildren().addAll(
-            createStatItem("Today's Sessions", "5", "#3B82F6"),
-            createStatItem("This Week", "18", "#10B981"),
-            createStatItem("This Month", "63", "#8B5CF6"),
-            createStatItem("Revenue (Month)", "$3,350", "#F59E0B")
+            createStatItem("Today's Sessions", todaysSessionsValue, "#3B82F6"),
+            createStatItem("This Week", weeklySessionsValue, "#10B981"),
+            createStatItem("This Month", monthlySessionsValue, "#8B5CF6"),
+            createStatItem("Revenue (Month)", revenueValue, "#F59E0B")
         );
         
         return statsBar;
@@ -184,14 +220,11 @@ public class TrainingSessionsController extends ScrollPane {
     /**
      * Create stat item
      */
-    private VBox createStatItem(String label, String value, String color) {
+    private VBox createStatItem(String label, Label valueLabel, String color) {
         VBox statBox = new VBox(5);
         statBox.setAlignment(Pos.CENTER);
         statBox.setPadding(new Insets(10));
         statBox.getStyleClass().add("stat-item");
-        
-        Label valueLabel = new Label(value);
-        valueLabel.setStyle("-fx-font-size: 24px; -fx-font-weight: bold; -fx-text-fill: " + color + ";");
         
         Label labelText = new Label(label);
         labelText.getStyleClass().add("stat-label");
@@ -199,6 +232,12 @@ public class TrainingSessionsController extends ScrollPane {
         statBox.getChildren().addAll(valueLabel, labelText);
         
         return statBox;
+    }
+
+    private Label createStatValueLabel(String color) {
+        Label label = new Label("0");
+        label.setStyle("-fx-font-size: 24px; -fx-font-weight: bold; -fx-text-fill: " + color + ";");
+        return label;
     }
     
     /**
@@ -248,28 +287,138 @@ public class TrainingSessionsController extends ScrollPane {
         scrollPane.setFitToWidth(true);
         scrollPane.getStyleClass().add("table-scroll");
         
-        VBox tableRows = new VBox(5);
-        tableRows.setPadding(new Insets(10));
+        sessionsTableRows = new VBox(5);
+        sessionsTableRows.setPadding(new Insets(10));
+        refreshSessionsTable();
         
-        // Generate mock data
-        List<SessionData> sessionsList = generateMockSessions();
-        
-        for (SessionData session : sessionsList) {
-            tableRows.getChildren().add(createTableRow(session));
-        }
-        
-        scrollPane.setContent(tableRows);
+        scrollPane.setContent(sessionsTableRows);
         
         tableContainer.getChildren().addAll(tableHeader, scrollPane);
         VBox.setVgrow(scrollPane, Priority.ALWAYS);
         
         return tableContainer;
     }
+
+    private void refreshSessionsTable() {
+        if (sessionsTableRows == null) {
+            return;
+        }
+        List<TrainingSession> sessions = trainerScheduleService != null
+                ? trainerScheduleService.getAllSessions()
+                : Collections.emptyList();
+
+        List<TrainingSession> filtered = filterSessions(sessions);
+
+        sessionsTableRows.getChildren().setAll(
+                filtered.stream()
+                        .map(this::createTableRow)
+                        .collect(Collectors.toList())
+        );
+
+        updateStatCards(sessions);
+        updateFilterTabCounts(sessions);
+    }
+
+    private List<TrainingSession> filterSessions(List<TrainingSession> sessions) {
+        LocalDate today = LocalDate.now();
+        return sessions.stream()
+                .filter(session -> {
+                    switch (currentFilter) {
+                        case "Today":
+                            return session.getSessionDate().equals(today);
+                        case "Completed":
+                            return "Completed".equalsIgnoreCase(session.getStatus());
+                        case "Cancelled":
+                            return "Cancelled".equalsIgnoreCase(session.getStatus());
+                        case "Upcoming":
+                        default:
+                            return ("Scheduled".equalsIgnoreCase(session.getStatus())
+                                    || "In Progress".equalsIgnoreCase(session.getStatus()))
+                                    && !session.getSessionDate().isBefore(today);
+                    }
+                })
+                .sorted(Comparator
+                        .comparing(TrainingSession::getSessionDate)
+                        .thenComparing(TrainingSession::getStartTime))
+                .collect(Collectors.toList());
+    }
+
+    private void updateStatCards(List<TrainingSession> sessions) {
+        if (todaysSessionsValue == null) {
+            return;
+        }
+        LocalDate today = LocalDate.now();
+        LocalDate startOfWeek = today.with(DayOfWeek.MONDAY);
+        LocalDate endOfWeek = startOfWeek.plusDays(6);
+
+        long todayCount = sessions.stream()
+            .filter(this::isCountableForStats)
+            .filter(session -> session.getSessionDate().equals(today))
+                .count();
+
+        long weekCount = sessions.stream()
+            .filter(this::isCountableForStats)
+            .filter(session -> !session.getSessionDate().isBefore(startOfWeek)
+                        && !session.getSessionDate().isAfter(endOfWeek))
+                .count();
+
+        long monthCount = sessions.stream()
+            .filter(this::isCountableForStats)
+            .filter(session -> session.getSessionDate().getMonth().equals(today.getMonth())
+                        && session.getSessionDate().getYear() == today.getYear())
+                .count();
+
+        int revenueEstimate = (int) (monthCount * 75); // Rough estimate
+
+        todaysSessionsValue.setText(String.valueOf(todayCount));
+        weeklySessionsValue.setText(String.valueOf(weekCount));
+        monthlySessionsValue.setText(String.valueOf(monthCount));
+        revenueValue.setText("$" + revenueEstimate);
+    }
+
+    private boolean isCountableForStats(TrainingSession session) {
+        String status = session.getStatus() != null ? session.getStatus() : "";
+        return !"Cancelled".equalsIgnoreCase(status);
+    }
+
+    private void updateFilterTabCounts(List<TrainingSession> sessions) {
+        if (upcomingTab == null) {
+            return;
+        }
+        LocalDate today = LocalDate.now();
+
+        long todayCount = sessions.stream()
+                .filter(session -> session.getSessionDate().equals(today))
+                .count();
+
+        long upcomingCount = sessions.stream()
+                .filter(session -> isUpcoming(session, today))
+                .count();
+
+        long completedCountValue = sessions.stream()
+                .filter(session -> "Completed".equalsIgnoreCase(session.getStatus()))
+                .count();
+
+        long cancelledCountValue = sessions.stream()
+                .filter(session -> "Cancelled".equalsIgnoreCase(session.getStatus()))
+                .count();
+
+        upcomingTab.setText(String.format("Upcoming (%d)", upcomingCount));
+        todayTab.setText(String.format("Today (%d)", todayCount));
+        completedTab.setText(String.format("Completed (%d)", completedCountValue));
+        cancelledTab.setText(String.format("Cancelled (%d)", cancelledCountValue));
+    }
+
+    private boolean isUpcoming(TrainingSession session, LocalDate today) {
+        String status = session.getStatus() != null ? session.getStatus() : "";
+        boolean isFutureOrToday = !session.getSessionDate().isBefore(today);
+        return isFutureOrToday && ("Scheduled".equalsIgnoreCase(status) || "In Progress".equalsIgnoreCase(status));
+    }
     
     /**
      * Create table row
      */
-    private HBox createTableRow(SessionData session) {
+    private HBox createTableRow(TrainingSession session) {
         HBox row = new HBox();
         row.getStyleClass().add("table-row");
         row.setPadding(new Insets(10));
@@ -278,34 +427,34 @@ public class TrainingSessionsController extends ScrollPane {
         // Date & Time
         VBox dateTimeBox = new VBox(2);
         dateTimeBox.setPrefWidth(150);
-        Label dateLabel = new Label(session.date.format(DateTimeFormatter.ofPattern("MMM dd, yyyy")));
+        Label dateLabel = new Label(session.getSessionDate().format(DateTimeFormatter.ofPattern("MMM dd, yyyy")));
         dateLabel.setStyle("-fx-font-weight: 500;");
-        Label timeLabel = new Label(session.time.format(DateTimeFormatter.ofPattern("hh:mm a")));
+        Label timeLabel = new Label(session.getStartTime().format(DateTimeFormatter.ofPattern("hh:mm a")));
         timeLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: #6B7280;");
         dateTimeBox.getChildren().addAll(dateLabel, timeLabel);
         
         // Member
-        Label memberLabel = new Label(session.memberName);
+        Label memberLabel = new Label(session.getMemberName());
         memberLabel.setPrefWidth(200);
         
         // Trainer
-        Label trainerLabel = new Label(session.trainerName);
+        Label trainerLabel = new Label(session.getTrainerName());
         trainerLabel.setPrefWidth(180);
         trainerLabel.setStyle("-fx-font-weight: 500;");
         
         // Session Type
-        Label typeLabel = new Label(session.sessionType);
+        Label typeLabel = new Label(session.getSessionType());
         typeLabel.setPrefWidth(150);
         
         // Duration
-        Label durationLabel = new Label(session.duration + " min");
+        Label durationLabel = new Label(session.getDurationMinutes() + " min");
         durationLabel.setPrefWidth(100);
         
         // Status badge
-        Label statusBadge = new Label(session.status);
+        Label statusBadge = new Label(session.getStatus());
         statusBadge.setPrefWidth(120);
         statusBadge.getStyleClass().add("badge");
-        switch (session.status) {
+        switch (session.getStatus()) {
             case "Scheduled":
                 statusBadge.getStyleClass().add("badge-info");
                 break;
@@ -325,7 +474,7 @@ public class TrainingSessionsController extends ScrollPane {
         actionBox.setPrefWidth(200);
         actionBox.setAlignment(Pos.CENTER_LEFT);
         
-        if (session.status.equals("Scheduled")) {
+        if ("Scheduled".equals(session.getStatus())) {
             Button viewButton = new Button("View");
             viewButton.getStyleClass().add("btn-primary-small");
             viewButton.setOnAction(e -> viewSession(session));
@@ -335,7 +484,7 @@ public class TrainingSessionsController extends ScrollPane {
             cancelButton.setOnAction(e -> cancelSession(session));
             
             actionBox.getChildren().addAll(viewButton, cancelButton);
-        } else if (session.status.equals("Completed")) {
+        } else {
             Button viewButton = new Button("View");
             viewButton.getStyleClass().add("btn-primary-small");
             viewButton.setOnAction(e -> viewSession(session));
@@ -353,8 +502,7 @@ public class TrainingSessionsController extends ScrollPane {
      */
     private void applyFilter(String filter) {
         currentFilter = filter;
-        System.out.println("Filter applied: " + filter);
-        // In real implementation, this would refresh the table with filtered data
+        refreshSessionsTable();
     }
     
     // ==================== DIALOG VIEWS ====================
@@ -374,28 +522,27 @@ public class TrainingSessionsController extends ScrollPane {
         grid.setPadding(new Insets(20));
         
         // Member selection
-        ComboBox<String> memberBox = new ComboBox<>();
-        memberBox.getItems().addAll(
-            "M1001 - John Smith",
-            "M1002 - Sarah Johnson",
-            "M1003 - Mike Chen",
-            "M1004 - Emma Davis",
-            "M1005 - Lisa Martinez"
-        );
+        ComboBox<MemberOption> memberBox = new ComboBox<>();
+        memberBox.setItems(FXCollections.observableArrayList(getSampleMembers()));
         memberBox.setPromptText("Select member");
         memberBox.setPrefWidth(300);
+        memberBox.setConverter(new StringConverter<>() {
+            @Override
+            public String toString(MemberOption option) {
+                return option != null ? option.toString() : "";
+            }
+
+            @Override
+            public MemberOption fromString(String string) {
+                return null;
+            }
+        });
         
         // Trainer selection
-        ComboBox<String> trainerBox = new ComboBox<>();
-        trainerBox.getItems().addAll(
-            "Mike Johnson - Personal Training",
-            "Sarah Williams - Yoga",
-            "David Chen - CrossFit",
-            "Emily Rodriguez - Pilates",
-            "James Anderson - Strength Training"
-        );
+        ComboBox<Trainer> trainerBox = new ComboBox<>();
         trainerBox.setPromptText("Select trainer");
         trainerBox.setPrefWidth(300);
+        populateTrainerBox(trainerBox);
         
         // Session type
         ComboBox<String> sessionTypeBox = new ComboBox<>();
@@ -469,28 +616,205 @@ public class TrainingSessionsController extends ScrollPane {
                     return;
                 }
                 
-                // Generate session ID
-                String sessionId = "S" + System.currentTimeMillis();
-                
-                System.out.println("\n=== Training Session Scheduled ===");
-                System.out.println("Session ID: " + sessionId);
-                System.out.println("Member: " + memberBox.getValue());
-                System.out.println("Trainer: " + trainerBox.getValue());
-                System.out.println("Session Type: " + sessionTypeBox.getValue());
-                System.out.println("Date: " + datePicker.getValue());
-                System.out.println("Time: " + timeBox.getValue());
-                System.out.println("Duration: " + durationBox.getValue());
-                System.out.println("Notes: " + notesArea.getText());
-                System.out.println("=================================\n");
-                
-                // Show success
-                Alert success = new Alert(Alert.AlertType.INFORMATION);
-                success.setTitle("Success");
-                success.setHeaderText("Session Scheduled Successfully");
-                success.setContentText("Session ID: " + sessionId + "\n" +
-                                      "Date: " + datePicker.getValue() + " at " + timeBox.getValue() + "\n" +
-                                      "Confirmation emails sent to member and trainer.");
-                success.showAndWait();
+                MemberOption selectedMember = memberBox.getValue();
+                Trainer selectedTrainer = trainerBox.getValue();
+                LocalDate sessionDate = datePicker.getValue();
+                LocalTime sessionTime = LocalTime.parse(timeBox.getValue());
+                int durationMinutes = Integer.parseInt(durationBox.getValue().split(" ")[0]);
+
+                try {
+                    if (trainerScheduleService == null) {
+                        throw new IllegalStateException("Scheduling service is not available.");
+                    }
+                    TrainingSession session = trainerScheduleService.scheduleSession(
+                            selectedMember.memberId,
+                            selectedMember.memberName,
+                            selectedTrainer.getTrainerId(),
+                            sessionTypeBox.getValue(),
+                            sessionDate,
+                            sessionTime,
+                            durationMinutes,
+                            notesArea.getText()
+                    );
+
+                    Alert success = new Alert(Alert.AlertType.INFORMATION);
+                    success.setTitle("Success");
+                    success.setHeaderText("Session Scheduled Successfully");
+                    success.setContentText("Session ID: " + session.getSessionId() + "\n" +
+                            "Date: " + session.getSessionDate() + " at " + session.getStartTime() + "\n" +
+                            "Confirmation emails sent to member and trainer.");
+                    success.showAndWait();
+                    refreshSessionsTable();
+                } catch (Exception ex) {
+                    Alert error = new Alert(Alert.AlertType.ERROR);
+                    error.setTitle("Unable to schedule session");
+                    error.setHeaderText("Validation error");
+                    error.setContentText(ex.getMessage());
+                    error.showAndWait();
+                }
+            }
+        });
+    }
+
+    private void showAvailabilityManager() {
+        if (trainerScheduleService == null) {
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.setTitle("Unavailable");
+            alert.setHeaderText("Scheduling service not available");
+            alert.setContentText("Please contact support.");
+            alert.showAndWait();
+            return;
+        }
+
+        loadTrainerData();
+        if (availableTrainers.isEmpty()) {
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.setTitle("No Trainers");
+            alert.setHeaderText("No trainers found");
+            alert.setContentText("Add trainers before configuring availability.");
+            alert.showAndWait();
+            return;
+        }
+
+        Dialog<Void> dialog = new Dialog<>();
+        dialog.setTitle("Trainer Availability");
+        dialog.setHeaderText("Manage availability slots");
+        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+
+        VBox root = new VBox(15);
+        root.setPadding(new Insets(20));
+
+        ComboBox<Trainer> trainerBox = new ComboBox<>();
+        trainerBox.setPrefWidth(350);
+        trainerBox.setItems(FXCollections.observableArrayList(availableTrainers));
+        configureTrainerComboBoxDisplay(trainerBox);
+        trainerBox.getSelectionModel().selectFirst();
+
+        ListView<TrainerAvailabilitySlot> slotList = new ListView<>();
+        slotList.setPrefHeight(250);
+        slotList.setPlaceholder(new Label("No availability slots yet"));
+        slotList.setCellFactory(list -> new ListCell<>() {
+            @Override
+            protected void updateItem(TrainerAvailabilitySlot item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                } else {
+                        String text = String.format("%s: %s - %s",
+                            item.getDayOfWeek().getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.getDefault()),
+                            item.getStartTime(),
+                            item.getEndTime());
+                    setText(text);
+                }
+            }
+        });
+
+        ComboBox<DayOfWeek> dayBox = new ComboBox<>(FXCollections.observableArrayList(DayOfWeek.values()));
+        dayBox.getSelectionModel().select(DayOfWeek.MONDAY);
+        ComboBox<String> startTimeBox = new ComboBox<>(FXCollections.observableArrayList(buildTimeOptions()));
+        startTimeBox.setPromptText("Start");
+        ComboBox<String> endTimeBox = new ComboBox<>(FXCollections.observableArrayList(buildTimeOptions()));
+        endTimeBox.setPromptText("End");
+
+        HBox addSlotRow = new HBox(10, dayBox, startTimeBox, new Label("to"), endTimeBox);
+        addSlotRow.setAlignment(Pos.CENTER_LEFT);
+
+        Button addSlotButton = new Button("Add Slot");
+        addSlotButton.getStyleClass().add("btn-primary-small");
+        Button removeSlotButton = new Button("Remove Selected");
+        removeSlotButton.getStyleClass().add("btn-secondary-small");
+        removeSlotButton.disableProperty().bind(slotList.getSelectionModel().selectedItemProperty().isNull());
+
+        addSlotButton.setOnAction(e -> {
+            Trainer trainer = trainerBox.getValue();
+            if (trainer == null) {
+                showError("Select trainer", "Please pick a trainer");
+                return;
+            }
+            DayOfWeek day = dayBox.getValue();
+            String startValue = startTimeBox.getValue();
+            String endValue = endTimeBox.getValue();
+            if (day == null || startValue == null || endValue == null) {
+                showError("Missing fields", "Day, start, and end times are required.");
+                return;
+            }
+            LocalTime start = LocalTime.parse(startValue);
+            LocalTime end = LocalTime.parse(endValue);
+            if (!start.isBefore(end)) {
+                showError("Invalid time", "Start must be before end time.");
+                return;
+            }
+            try {
+                trainerScheduleService.addAvailabilitySlot(trainer.getTrainerId(), day, start, end);
+                refreshAvailabilityList(trainer, slotList);
+            } catch (Exception ex) {
+                showError("Unable to add slot", ex.getMessage());
+            }
+        });
+
+        removeSlotButton.setOnAction(e -> {
+            TrainerAvailabilitySlot selected = slotList.getSelectionModel().getSelectedItem();
+            Trainer trainer = trainerBox.getValue();
+            if (selected == null || trainer == null) {
+                return;
+            }
+            try {
+                trainerScheduleService.removeAvailabilitySlot(selected.getSlotId());
+                refreshAvailabilityList(trainer, slotList);
+            } catch (Exception ex) {
+                showError("Unable to remove slot", ex.getMessage());
+            }
+        });
+
+        trainerBox.valueProperty().addListener((obs, old, val) -> refreshAvailabilityList(val, slotList));
+        refreshAvailabilityList(trainerBox.getValue(), slotList);
+
+        HBox buttonRow = new HBox(10, addSlotButton, removeSlotButton);
+
+        root.getChildren().addAll(new Label("Trainer"), trainerBox, slotList, addSlotRow, buttonRow);
+        dialog.getDialogPane().setContent(root);
+        dialog.showAndWait();
+    }
+
+    private void loadTrainerData() {
+        if (trainerService != null) {
+            availableTrainers = trainerService.getAllTrainers();
+        } else {
+            availableTrainers = Collections.emptyList();
+        }
+    }
+
+    private void populateTrainerBox(ComboBox<Trainer> trainerBox) {
+        loadTrainerData();
+        if (availableTrainers.isEmpty()) {
+            trainerBox.setItems(FXCollections.observableArrayList());
+            trainerBox.setPromptText("No trainers available");
+            trainerBox.setDisable(true);
+            return;
+        }
+
+        trainerBox.setDisable(false);
+        trainerBox.setItems(FXCollections.observableArrayList(availableTrainers));
+        configureTrainerComboBoxDisplay(trainerBox);
+    }
+
+    private String formatTrainerDisplay(Trainer trainer) {
+        return trainer.getFullName() + " - " + trainer.getSpecialization();
+    }
+
+    private void configureTrainerComboBoxDisplay(ComboBox<Trainer> comboBox) {
+        comboBox.setCellFactory(cb -> new ListCell<>() {
+            @Override
+            protected void updateItem(Trainer item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : formatTrainerDisplay(item));
+            }
+        });
+        comboBox.setButtonCell(new ListCell<>() {
+            @Override
+            protected void updateItem(Trainer item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : formatTrainerDisplay(item));
             }
         });
     }
@@ -498,10 +822,10 @@ public class TrainingSessionsController extends ScrollPane {
     /**
      * View session details
      */
-    private void viewSession(SessionData session) {
+    private void viewSession(TrainingSession session) {
         Dialog<ButtonType> dialog = new Dialog<>();
         dialog.setTitle("Session Details");
-        dialog.setHeaderText("Training Session #" + session.sessionId);
+        dialog.setHeaderText("Training Session #" + session.getSessionId());
         
         VBox content = new VBox(20);
         content.setPadding(new Insets(20));
@@ -519,12 +843,12 @@ public class TrainingSessionsController extends ScrollPane {
         sessionGrid.setHgap(20);
         sessionGrid.setVgap(8);
         
-        addDetailRow(sessionGrid, 0, "Session ID:", session.sessionId);
-        addDetailRow(sessionGrid, 1, "Date:", session.date.format(DateTimeFormatter.ofPattern("MMM dd, yyyy")));
-        addDetailRow(sessionGrid, 2, "Time:", session.time.format(DateTimeFormatter.ofPattern("hh:mm a")));
-        addDetailRow(sessionGrid, 3, "Duration:", session.duration + " minutes");
-        addDetailRow(sessionGrid, 4, "Session Type:", session.sessionType);
-        addDetailRow(sessionGrid, 5, "Status:", session.status);
+        addDetailRow(sessionGrid, 0, "Session ID:", session.getSessionId());
+        addDetailRow(sessionGrid, 1, "Date:", session.getSessionDate().format(DateTimeFormatter.ofPattern("MMM dd, yyyy")));
+        addDetailRow(sessionGrid, 2, "Time:", session.getStartTime().format(DateTimeFormatter.ofPattern("hh:mm a")));
+        addDetailRow(sessionGrid, 3, "Duration:", session.getDurationMinutes() + " minutes");
+        addDetailRow(sessionGrid, 4, "Session Type:", session.getSessionType());
+        addDetailRow(sessionGrid, 5, "Status:", session.getStatus());
         
         sessionInfo.getChildren().addAll(sessionTitle, sessionGrid);
         
@@ -540,8 +864,20 @@ public class TrainingSessionsController extends ScrollPane {
         participantGrid.setHgap(20);
         participantGrid.setVgap(8);
         
-        addDetailRow(participantGrid, 0, "Member:", session.memberName);
-        addDetailRow(participantGrid, 1, "Trainer:", session.trainerName);
+        addDetailRow(participantGrid, 0, "Member:", session.getMemberName());
+        addDetailRow(participantGrid, 1, "Trainer:", session.getTrainerName());
+
+        if (session.getNotes() != null && !session.getNotes().isBlank()) {
+            VBox notesBox = new VBox(5);
+            notesBox.getStyleClass().add("info-card");
+            notesBox.setPadding(new Insets(15));
+            Label notesTitle = new Label("Notes");
+            notesTitle.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
+            Label notesValue = new Label(session.getNotes());
+            notesValue.setWrapText(true);
+            notesBox.getChildren().addAll(notesTitle, notesValue);
+            content.getChildren().add(notesBox);
+        }
         
         participantInfo.getChildren().addAll(participantTitle, participantGrid);
         
@@ -549,7 +885,7 @@ public class TrainingSessionsController extends ScrollPane {
         
         dialog.getDialogPane().setContent(content);
         
-        if (session.status.equals("Scheduled")) {
+        if ("Scheduled".equals(session.getStatus())) {
             dialog.getDialogPane().getButtonTypes().addAll(ButtonType.CLOSE);
         } else {
             dialog.getDialogPane().getButtonTypes().addAll(ButtonType.CLOSE);
@@ -561,31 +897,35 @@ public class TrainingSessionsController extends ScrollPane {
     /**
      * Cancel session
      */
-    private void cancelSession(SessionData session) {
+    private void cancelSession(TrainingSession session) {
         Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
         alert.setTitle("Cancel Session");
         alert.setHeaderText("Cancel Training Session");
         alert.setContentText("Are you sure you want to cancel this session?\n\n" +
-                             "Member: " + session.memberName + "\n" +
-                             "Trainer: " + session.trainerName + "\n" +
-                             "Date: " + session.date.format(DateTimeFormatter.ofPattern("MMM dd, yyyy")) + 
-                             " at " + session.time.format(DateTimeFormatter.ofPattern("hh:mm a")));
+                             "Member: " + session.getMemberName() + "\n" +
+                             "Trainer: " + session.getTrainerName() + "\n" +
+                             "Date: " + session.getSessionDate().format(DateTimeFormatter.ofPattern("MMM dd, yyyy")) +
+                             " at " + session.getStartTime().format(DateTimeFormatter.ofPattern("hh:mm a")));
         
         alert.showAndWait().ifPresent(response -> {
             if (response == ButtonType.OK) {
-                System.out.println("\n=== Session Cancelled ===");
-                System.out.println("Session ID: " + session.sessionId);
-                System.out.println("Member: " + session.memberName);
-                System.out.println("Trainer: " + session.trainerName);
-                System.out.println("========================\n");
-                
-                Alert success = new Alert(Alert.AlertType.INFORMATION);
-                success.setTitle("Success");
-                success.setHeaderText("Session Cancelled");
-                success.setContentText("The session has been cancelled.\nNotifications sent to member and trainer.");
-                success.showAndWait();
-                
-                // Refresh list (in real implementation)
+                try {
+                    if (trainerScheduleService != null) {
+                        trainerScheduleService.cancelSession(session.getSessionId(), "Cancelled via UI");
+                    }
+                    Alert success = new Alert(Alert.AlertType.INFORMATION);
+                    success.setTitle("Success");
+                    success.setHeaderText("Session Cancelled");
+                    success.setContentText("The session has been cancelled.\nNotifications sent to member and trainer.");
+                    success.showAndWait();
+                    refreshSessionsTable();
+                } catch (Exception ex) {
+                    Alert error = new Alert(Alert.AlertType.ERROR);
+                    error.setTitle("Cancellation Failed");
+                    error.setHeaderText("Unable to cancel session");
+                    error.setContentText(ex.getMessage());
+                    error.showAndWait();
+                }
             }
         });
     }
@@ -604,70 +944,64 @@ public class TrainingSessionsController extends ScrollPane {
         grid.add(labelText, 0, row);
         grid.add(valueText, 1, row);
     }
-    
-    // ==================== DATA GENERATION ====================
-    
-    /**
-     * Generate mock session data
-     */
-    private List<SessionData> generateMockSessions() {
-        List<SessionData> sessions = new ArrayList<>();
-        Random random = new Random();
-        
-        String[] members = {"John Smith", "Sarah Johnson", "Mike Chen", "Emma Davis", "Lisa Martinez"};
-        String[] trainers = {"Mike Johnson", "Sarah Williams", "David Chen", "Emily Rodriguez"};
-        String[] sessionTypes = {"Personal Training", "Yoga Session", "CrossFit Training", "Pilates", "Strength Training"};
-        String[] statuses = {"Scheduled", "Scheduled", "Scheduled", "Completed", "Cancelled"};
-        
-        // Generate 12 sessions
-        for (int i = 0; i < 12; i++) {
-            SessionData session = new SessionData();
-            session.sessionId = "S" + (10001 + i);
-            
-            // Date distribution
-            if (i < 5) {
-                session.date = LocalDate.now(); // Today
-                session.status = "Scheduled";
-            } else if (i < 12) {
-                session.date = LocalDate.now().plusDays(random.nextInt(7) + 1); // Next 7 days
-                session.status = "Scheduled";
-            } else {
-                session.date = LocalDate.now().minusDays(random.nextInt(30) + 1); // Past
-                session.status = random.nextBoolean() ? "Completed" : "Cancelled";
-            }
-            
-            session.time = LocalTime.of(6 + random.nextInt(14), random.nextBoolean() ? 0 : 30);
-            session.memberName = members[random.nextInt(members.length)];
-            session.trainerName = trainers[random.nextInt(trainers.length)];
-            session.sessionType = sessionTypes[random.nextInt(sessionTypes.length)];
-            session.duration = 30 + (random.nextInt(3) * 15); // 30, 45, 60, or 75 minutes
-            
-            sessions.add(session);
+
+    private void refreshAvailabilityList(Trainer trainer, ListView<TrainerAvailabilitySlot> listView) {
+        if (listView == null) {
+            return;
         }
-        
-        // Sort by date and time
-        sessions.sort((s1, s2) -> {
-            int dateCompare = s1.date.compareTo(s2.date);
-            if (dateCompare != 0) return dateCompare;
-            return s1.time.compareTo(s2.time);
-        });
-        
-        return sessions;
+        if (trainer == null || trainerScheduleService == null) {
+            listView.setItems(FXCollections.observableArrayList());
+            return;
+        }
+        List<TrainerAvailabilitySlot> slots = trainerScheduleService.getAvailabilityForTrainer(trainer.getTrainerId()).stream()
+                .sorted(Comparator
+                        .comparing((TrainerAvailabilitySlot slot) -> slot.getDayOfWeek().getValue())
+                        .thenComparing(TrainerAvailabilitySlot::getStartTime))
+                .collect(Collectors.toList());
+        listView.setItems(FXCollections.observableArrayList(slots));
     }
-    
-    // ==================== DATA CLASS ====================
-    
-    /**
-     * Session data class
-     */
-    private static class SessionData {
-        String sessionId;
-        LocalDate date;
-        LocalTime time;
-        String memberName;
-        String trainerName;
-        String sessionType;
-        int duration;
-        String status;
+
+    private List<String> buildTimeOptions() {
+        List<String> times = new ArrayList<>();
+        LocalTime time = LocalTime.of(6, 0);
+        LocalTime end = LocalTime.of(21, 0);
+        while (!time.isAfter(end)) {
+            times.add(time.toString());
+            time = time.plusMinutes(30);
+        }
+        return times;
+    }
+
+    private void showError(String title, String message) {
+        Alert alert = new Alert(Alert.AlertType.ERROR);
+        alert.setTitle(title);
+        alert.setHeaderText(title);
+        alert.setContentText(message);
+        alert.showAndWait();
+    }
+
+    private List<MemberOption> getSampleMembers() {
+        return List.of(
+                new MemberOption("M1001", "John Smith"),
+                new MemberOption("M1002", "Sarah Johnson"),
+                new MemberOption("M1003", "Mike Chen"),
+                new MemberOption("M1004", "Emma Davis"),
+                new MemberOption("M1005", "Lisa Martinez")
+        );
+    }
+
+    private static class MemberOption {
+        private final String memberId;
+        private final String memberName;
+
+        private MemberOption(String memberId, String memberName) {
+            this.memberId = memberId;
+            this.memberName = memberName;
+        }
+
+        @Override
+        public String toString() {
+            return memberId + " - " + memberName;
+        }
     }
 }

@@ -6,19 +6,21 @@ package com.block20.views;
 
 import com.block20.services.MemberService;
 import com.block20.services.ExportService;
+import com.block20.services.TrainerScheduleService;
+import com.block20.services.TrainerService;
 import com.block20.components.SidebarNavigation;
 import com.block20.components.TopNavigation;
-import com.block20.controllers.staff.StaffDashboardController;
-import com.block20.controllers.members.MemberRegistryController;
-import com.block20.controllers.members.CheckInController;
-import com.block20.controllers.enrollment.EnrollmentController;
-import com.block20.controllers.renewals.RenewalsController;
-import com.block20.controllers.trainers.TrainerRegistryController;
-import com.block20.controllers.trainers.TrainingSessionsController;
-import com.block20.controllers.equipment.EquipmentInventoryController;
-import com.block20.controllers.equipment.MaintenanceScheduleController;
 import com.block20.controllers.FinancialReportsController;
 import com.block20.controllers.OperationalReportsController;
+import com.block20.controllers.enrollment.EnrollmentController;
+import com.block20.controllers.equipment.EquipmentInventoryController;
+import com.block20.controllers.equipment.MaintenanceScheduleController;
+import com.block20.controllers.members.CheckInController;
+import com.block20.controllers.members.MemberRegistryController;
+import com.block20.controllers.renewals.RenewalsController;
+import com.block20.controllers.staff.StaffDashboardController;
+import com.block20.controllers.trainers.TrainerRegistryController;
+import com.block20.controllers.trainers.TrainingSessionsController;
 import com.block20.services.EquipmentService;
 import javafx.scene.control.Label;
 import javafx.scene.layout.BorderPane;
@@ -42,12 +44,22 @@ public class StaffPortalView {
     private final MemberService memberService; 
     private final EquipmentService equipmentService;
     private final ExportService exportService;
-    public StaffPortalView(String staffName, String staffRole, MemberService memberService, EquipmentService equipmentService, ExportService exportService) {
+    private final TrainerService trainerService;
+    private final TrainerScheduleService trainerScheduleService;
+    public StaffPortalView(String staffName,
+                          String staffRole,
+                          MemberService memberService,
+                          EquipmentService equipmentService,
+                          ExportService exportService,
+                          TrainerService trainerService,
+                          TrainerScheduleService trainerScheduleService) {
         this.staffName = staffName;
         this.staffRole = staffRole;
         this.memberService = memberService;
         this.equipmentService = equipmentService;
         this.exportService = exportService;
+        this.trainerService = trainerService;
+        this.trainerScheduleService = trainerScheduleService;
         initializeView();
     }
     
@@ -165,7 +177,7 @@ public class StaffPortalView {
      * Show trainer registry view (combines register and manage trainers)
      */
     private void showTrainersRegistry() {
-        TrainerRegistryController trainerRegistryController = new TrainerRegistryController(this::handleNavigation);
+        TrainerRegistryController trainerRegistryController = new TrainerRegistryController(this::handleNavigation, this.trainerService);
         setContent(trainerRegistryController);
     }
     
@@ -173,7 +185,11 @@ public class StaffPortalView {
      * Show training sessions view (combines view sessions and schedule)
      */
     private void showTrainersSessions() {
-        TrainingSessionsController trainingSessionsController = new TrainingSessionsController(this::handleNavigation);
+        TrainingSessionsController trainingSessionsController = new TrainingSessionsController(
+                this::handleNavigation,
+                this.trainerService,
+                this.trainerScheduleService
+        );
         setContent(trainingSessionsController);
     }
     

@@ -4,15 +4,16 @@
  */
 package com.block20.controllers.trainers;
 
+import com.block20.models.Trainer;
+import com.block20.services.TrainerService;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
-import java.util.Random;
 import java.util.function.Consumer;
 
 /**
@@ -26,15 +27,23 @@ public class TrainerRegistryController extends ScrollPane {
     
     private VBox contentContainer;
     private Consumer<String> navigationHandler;
-    
-    // Current view state
-    private TrainerData selectedTrainer;
+    private final TrainerService trainerService;
+
+    private VBox tableRows;
+    private TextField searchField;
+    private Label totalTrainersValue;
+    private Label activeTrainersValue;
+    private Label onLeaveValue;
+    private Label sessionsPerMonthValue;
+    private List<Trainer> currentTrainers = Collections.emptyList();
+    private Trainer selectedTrainer;
     
     /**
      * Constructor
      */
-    public TrainerRegistryController(Consumer<String> navigationHandler) {
+    public TrainerRegistryController(Consumer<String> navigationHandler, TrainerService trainerService) {
         this.navigationHandler = navigationHandler;
+        this.trainerService = trainerService;
         initializeView();
     }
     
@@ -66,6 +75,7 @@ public class TrainerRegistryController extends ScrollPane {
         VBox tableSection = createTrainersTable();
         
         contentContainer.getChildren().addAll(header, actionBar, statsBar, tableSection);
+        refreshTrainerData();
         
         // Set content
         setContent(contentContainer);
@@ -101,16 +111,12 @@ public class TrainerRegistryController extends ScrollPane {
         actionBar.setAlignment(Pos.CENTER_LEFT);
         
         // Search field
-        TextField searchField = new TextField();
+        searchField = new TextField();
         searchField.setPromptText("🔍 Search trainers by name, specialization, or ID...");
         searchField.getStyleClass().add("search-input");
         searchField.setPrefWidth(500);
         
-        // Search functionality
-        searchField.textProperty().addListener((obs, oldVal, newVal) -> {
-            System.out.println("Searching for: " + newVal);
-            // In real implementation, filter the trainer list
-        });
+        searchField.textProperty().addListener((obs, oldVal, newVal) -> refreshTrainerData());
         
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
@@ -134,11 +140,16 @@ public class TrainerRegistryController extends ScrollPane {
         statsBar.setPadding(new Insets(15));
         statsBar.getStyleClass().add("stats-bar");
         
+        totalTrainersValue = createValueLabel("#3B82F6");
+        activeTrainersValue = createValueLabel("#10B981");
+        onLeaveValue = createValueLabel("#F59E0B");
+        sessionsPerMonthValue = createValueLabel("#8B5CF6");
+
         statsBar.getChildren().addAll(
-            createStatItem("Total Trainers", "8", "#3B82F6"),
-            createStatItem("Active", "7", "#10B981"),
-            createStatItem("On Leave", "1", "#F59E0B"),
-            createStatItem("Sessions Today", "12", "#8B5CF6")
+            createStatItem("Total Trainers", totalTrainersValue, "#3B82F6"),
+            createStatItem("Active", activeTrainersValue, "#10B981"),
+            createStatItem("On Leave", onLeaveValue, "#F59E0B"),
+            createStatItem("Sessions / Month", sessionsPerMonthValue, "#8B5CF6")
         );
         
         return statsBar;
@@ -147,13 +158,12 @@ public class TrainerRegistryController extends ScrollPane {
     /**
      * Create stat item
      */
-    private VBox createStatItem(String label, String value, String color) {
+    private VBox createStatItem(String label, Label valueLabel, String color) {
         VBox statBox = new VBox(5);
         statBox.setAlignment(Pos.CENTER);
         statBox.setPadding(new Insets(10));
         statBox.getStyleClass().add("stat-item");
         
-        Label valueLabel = new Label(value);
         valueLabel.setStyle("-fx-font-size: 24px; -fx-font-weight: bold; -fx-text-fill: " + color + ";");
         
         Label labelText = new Label(label);
@@ -162,6 +172,12 @@ public class TrainerRegistryController extends ScrollPane {
         statBox.getChildren().addAll(valueLabel, labelText);
         
         return statBox;
+    }
+
+    private Label createValueLabel(String color) {
+        Label label = new Label("0");
+        label.setStyle("-fx-font-size: 24px; -fx-font-weight: bold; -fx-text-fill: " + color + ";");
+        return label;
     }
     
     /**
@@ -211,16 +227,8 @@ public class TrainerRegistryController extends ScrollPane {
         scrollPane.setFitToWidth(true);
         scrollPane.getStyleClass().add("table-scroll");
         
-        VBox tableRows = new VBox(5);
+        tableRows = new VBox(5);
         tableRows.setPadding(new Insets(10));
-        
-        // Generate mock data
-        List<TrainerData> trainersList = generateMockTrainers();
-        
-        for (TrainerData trainer : trainersList) {
-            tableRows.getChildren().add(createTableRow(trainer));
-        }
-        
         scrollPane.setContent(tableRows);
         
         tableContainer.getChildren().addAll(tableHeader, scrollPane);
@@ -232,38 +240,38 @@ public class TrainerRegistryController extends ScrollPane {
     /**
      * Create table row
      */
-    private HBox createTableRow(TrainerData trainer) {
+    private HBox createTableRow(Trainer trainer) {
         HBox row = new HBox();
         row.getStyleClass().add("table-row");
         row.setPadding(new Insets(10));
         row.setAlignment(Pos.CENTER_LEFT);
         
         // Trainer ID
-        Label idLabel = new Label(trainer.trainerId);
+        Label idLabel = new Label(trainer.getTrainerId());
         idLabel.setPrefWidth(80);
         
         // Name
-        Label nameLabel = new Label(trainer.name);
+        Label nameLabel = new Label(trainer.getFullName());
         nameLabel.setPrefWidth(200);
         nameLabel.setStyle("-fx-font-weight: 500;");
         
         // Specialization
-        Label specializationLabel = new Label(trainer.specialization);
+        Label specializationLabel = new Label(trainer.getSpecialization());
         specializationLabel.setPrefWidth(200);
         
         // Status badge
-        Label statusBadge = new Label(trainer.status);
+        Label statusBadge = new Label(trainer.getStatus());
         statusBadge.setPrefWidth(120);
         statusBadge.getStyleClass().add("badge");
-        statusBadge.getStyleClass().add(trainer.status.equals("Active") ? "badge-success" : "badge-warning");
+        statusBadge.getStyleClass().add("Active".equalsIgnoreCase(trainer.getStatus()) ? "badge-success" : "badge-warning");
         
         // Certification
-        Label certLabel = new Label(trainer.certification);
+        Label certLabel = new Label(trainer.getCertification() != null ? trainer.getCertification() : "N/A");
         certLabel.setPrefWidth(150);
         certLabel.setStyle("-fx-font-size: 12px;");
         
         // Sessions count
-        Label sessionsLabel = new Label(String.valueOf(trainer.sessionsPerMonth));
+        Label sessionsLabel = new Label(String.valueOf(Math.max(trainer.getSessionsPerMonth(), 0)));
         sessionsLabel.setPrefWidth(150);
         sessionsLabel.setStyle("-fx-font-weight: 500;");
         
@@ -276,11 +284,7 @@ public class TrainerRegistryController extends ScrollPane {
         viewButton.getStyleClass().add("btn-primary-small");
         viewButton.setOnAction(e -> showTrainerProfile(trainer));
         
-        Button scheduleButton = new Button("Schedule");
-        scheduleButton.getStyleClass().add("btn-secondary-small");
-        scheduleButton.setOnAction(e -> manageSchedule(trainer));
-        
-        actionBox.getChildren().addAll(viewButton, scheduleButton);
+        actionBox.getChildren().addAll(viewButton);
         
         row.getChildren().addAll(idLabel, nameLabel, specializationLabel, statusBadge, certLabel, sessionsLabel, actionBox);
         
@@ -360,35 +364,26 @@ public class TrainerRegistryController extends ScrollPane {
                 String specialization = specializationBox.getValue();
                 
                 if (firstName.isEmpty() || lastName.isEmpty() || email.isEmpty() || specialization == null) {
-                    Alert alert = new Alert(Alert.AlertType.ERROR);
-                    alert.setTitle("Validation Error");
-                    alert.setHeaderText("Missing Required Fields");
-                    alert.setContentText("Please fill in all required fields (Name, Email, Specialization).");
-                    alert.showAndWait();
+                    showAlert(Alert.AlertType.ERROR, "Validation Error", "Please fill in all required fields.");
                     return;
                 }
-                
-                // Generate trainer ID
-                String trainerId = "T" + (1000 + new Random().nextInt(9000));
-                
-                System.out.println("\n=== Trainer Registered ===");
-                System.out.println("Trainer ID: " + trainerId);
-                System.out.println("Name: " + firstName + " " + lastName);
-                System.out.println("Email: " + email);
-                System.out.println("Phone: " + phoneField.getText());
-                System.out.println("Specialization: " + specialization);
-                System.out.println("Certification: " + certificationField.getText());
-                System.out.println("Hire Date: " + hireDatePicker.getValue());
-                System.out.println("========================\n");
-                
-                // Show success
-                Alert success = new Alert(Alert.AlertType.INFORMATION);
-                success.setTitle("Success");
-                success.setHeaderText("Trainer Registered Successfully");
-                success.setContentText("Trainer ID: " + trainerId + "\nName: " + firstName + " " + lastName);
-                success.showAndWait();
-                
-                // Refresh list (in real implementation)
+                try {
+                    Trainer trainer = trainerService.registerTrainer(
+                        firstName,
+                        lastName,
+                        email,
+                        phoneField.getText(),
+                        specialization,
+                        certificationField.getText(),
+                        hireDatePicker.getValue(),
+                        notesArea.getText()
+                    );
+                    showAlert(Alert.AlertType.INFORMATION, "Trainer Registered", "Trainer ID: " + trainer.getTrainerId());
+                    searchField.clear();
+                    refreshTrainerData();
+                } catch (IllegalArgumentException ex) {
+                    showAlert(Alert.AlertType.ERROR, "Could not register trainer", ex.getMessage());
+                }
             }
         });
     }
@@ -396,12 +391,12 @@ public class TrainerRegistryController extends ScrollPane {
     /**
      * Show trainer profile
      */
-    private void showTrainerProfile(TrainerData trainer) {
+    private void showTrainerProfile(Trainer trainer) {
         selectedTrainer = trainer;
         
         Dialog<ButtonType> dialog = new Dialog<>();
-        dialog.setTitle("Trainer Profile - " + trainer.name);
-        dialog.setHeaderText(trainer.name + " (" + trainer.trainerId + ")");
+        dialog.setTitle("Trainer Profile - " + trainer.getFullName());
+        dialog.setHeaderText(trainer.getFullName() + " (" + trainer.getTrainerId() + ")");
         
         VBox content = new VBox(20);
         content.setPadding(new Insets(20));
@@ -419,12 +414,12 @@ public class TrainerRegistryController extends ScrollPane {
         personalGrid.setHgap(20);
         personalGrid.setVgap(8);
         
-        addProfileRow(personalGrid, 0, "Trainer ID:", trainer.trainerId);
-        addProfileRow(personalGrid, 1, "Name:", trainer.name);
-        addProfileRow(personalGrid, 2, "Email:", trainer.email);
-        addProfileRow(personalGrid, 3, "Phone:", trainer.phone);
-        addProfileRow(personalGrid, 4, "Specialization:", trainer.specialization);
-        addProfileRow(personalGrid, 5, "Certification:", trainer.certification);
+        addProfileRow(personalGrid, 0, "Trainer ID:", trainer.getTrainerId());
+        addProfileRow(personalGrid, 1, "Name:", trainer.getFullName());
+        addProfileRow(personalGrid, 2, "Email:", trainer.getEmail());
+        addProfileRow(personalGrid, 3, "Phone:", trainer.getPhone());
+        addProfileRow(personalGrid, 4, "Specialization:", trainer.getSpecialization());
+        addProfileRow(personalGrid, 5, "Certification:", trainer.getCertification());
         
         personalInfo.getChildren().addAll(personalTitle, personalGrid);
         
@@ -440,11 +435,11 @@ public class TrainerRegistryController extends ScrollPane {
         professionalGrid.setHgap(20);
         professionalGrid.setVgap(8);
         
-        addProfileRow(professionalGrid, 0, "Status:", trainer.status);
-        addProfileRow(professionalGrid, 1, "Hire Date:", trainer.hireDate.format(DateTimeFormatter.ofPattern("MMM dd, yyyy")));
-        addProfileRow(professionalGrid, 2, "Sessions/Month:", String.valueOf(trainer.sessionsPerMonth));
-        addProfileRow(professionalGrid, 3, "Active Clients:", String.valueOf(trainer.activeClients));
-        addProfileRow(professionalGrid, 4, "Total Sessions:", String.valueOf(trainer.totalSessions));
+        addProfileRow(professionalGrid, 0, "Status:", trainer.getStatus());
+        addProfileRow(professionalGrid, 1, "Hire Date:", trainer.getHireDate() != null ? trainer.getHireDate().format(DateTimeFormatter.ofPattern("MMM dd, yyyy")) : "-");
+        addProfileRow(professionalGrid, 2, "Sessions/Month:", String.valueOf(Math.max(trainer.getSessionsPerMonth(), 0)));
+        addProfileRow(professionalGrid, 3, "Active Clients:", String.valueOf(Math.max(trainer.getActiveClients(), 0)));
+        addProfileRow(professionalGrid, 4, "Total Sessions:", String.valueOf(Math.max(trainer.getTotalSessions(), 0)));
         
         professionalInfo.getChildren().addAll(professionalTitle, professionalGrid);
         
@@ -454,22 +449,6 @@ public class TrainerRegistryController extends ScrollPane {
         dialog.getDialogPane().getButtonTypes().addAll(ButtonType.CLOSE);
         
         dialog.showAndWait();
-    }
-    
-    /**
-     * Manage trainer schedule
-     */
-    private void manageSchedule(TrainerData trainer) {
-        System.out.println("Managing schedule for: " + trainer.name);
-        
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.setTitle("Manage Schedule");
-        alert.setHeaderText("Schedule Management for " + trainer.name);
-        alert.setContentText("Current availability:\n" +
-                             "Monday-Friday: 6:00 AM - 2:00 PM\n" +
-                             "Saturday: 8:00 AM - 12:00 PM\n\n" +
-                             "Schedule management interface will be implemented here.");
-        alert.showAndWait();
     }
     
     /**
@@ -487,63 +466,51 @@ public class TrainerRegistryController extends ScrollPane {
         grid.add(valueText, 1, row);
     }
     
-    // ==================== DATA GENERATION ====================
-    
-    /**
-     * Generate mock trainer data
-     */
-    private List<TrainerData> generateMockTrainers() {
-        List<TrainerData> trainers = new ArrayList<>();
-        
-        String[][] trainerInfo = {
-            {"Mike Johnson", "Personal Training", "ACE-CPT", "Active", "2022-01-15"},
-            {"Sarah Williams", "Yoga", "RYT-200", "Active", "2021-06-20"},
-            {"David Chen", "CrossFit", "CF-L2", "Active", "2020-03-10"},
-            {"Emily Rodriguez", "Pilates", "PMA-CPT", "Active", "2023-02-01"},
-            {"James Anderson", "Strength Training", "NSCA-CSCS", "Active", "2019-08-15"},
-            {"Lisa Martinez", "Cardio", "ACSM-CPT", "On Leave", "2021-11-05"},
-            {"Robert Taylor", "Boxing", "USA Boxing", "Active", "2022-07-12"},
-            {"Jessica Lee", "Swimming", "WSI", "Active", "2020-09-18"}
-        };
-        
-        Random random = new Random();
-        
-        for (int i = 0; i < trainerInfo.length; i++) {
-            TrainerData trainer = new TrainerData();
-            trainer.trainerId = "T" + (1001 + i);
-            trainer.name = trainerInfo[i][0];
-            trainer.email = trainerInfo[i][0].toLowerCase().replace(" ", ".") + "@block20gym.com";
-            trainer.phone = "(555) " + (100 + random.nextInt(900)) + "-" + (1000 + random.nextInt(9000));
-            trainer.specialization = trainerInfo[i][1];
-            trainer.certification = trainerInfo[i][2];
-            trainer.status = trainerInfo[i][3];
-            trainer.hireDate = LocalDate.parse(trainerInfo[i][4]);
-            trainer.sessionsPerMonth = 15 + random.nextInt(25);
-            trainer.activeClients = 8 + random.nextInt(17);
-            trainer.totalSessions = 100 + random.nextInt(400);
-            
-            trainers.add(trainer);
+    private void refreshTrainerData() {
+        if (trainerService == null) {
+            return;
         }
-        
-        return trainers;
+        String keyword = searchField != null ? searchField.getText().trim() : "";
+        currentTrainers = keyword.isEmpty()
+                ? trainerService.getAllTrainers()
+                : trainerService.searchTrainers(keyword);
+        updateStats(currentTrainers);
+        refreshTable(currentTrainers);
     }
-    
-    // ==================== DATA CLASS ====================
-    
-    /**
-     * Trainer data class
-     */
-    private static class TrainerData {
-        String trainerId;
-        String name;
-        String email;
-        String phone;
-        String specialization;
-        String certification;
-        String status;
-        LocalDate hireDate;
-        int sessionsPerMonth;
-        int activeClients;
-        int totalSessions;
+
+    private void refreshTable(List<Trainer> trainers) {
+        if (tableRows == null) {
+            return;
+        }
+        tableRows.getChildren().clear();
+        if (trainers.isEmpty()) {
+            Label emptyState = new Label("No trainers found. Register a new trainer to get started.");
+            emptyState.getStyleClass().add("text-muted");
+            emptyState.setPadding(new Insets(16));
+            tableRows.getChildren().add(emptyState);
+            return;
+        }
+        for (Trainer trainer : trainers) {
+            tableRows.getChildren().add(createTableRow(trainer));
+        }
+    }
+
+    private void updateStats(List<Trainer> trainers) {
+        int total = trainers.size();
+        long active = trainers.stream().filter(t -> "Active".equalsIgnoreCase(t.getStatus())).count();
+        long onLeave = total - active;
+        int sessions = trainers.stream().mapToInt(Trainer::getSessionsPerMonth).sum();
+        totalTrainersValue.setText(String.valueOf(total));
+        activeTrainersValue.setText(String.valueOf(active));
+        onLeaveValue.setText(String.valueOf(onLeave));
+        sessionsPerMonthValue.setText(String.valueOf(sessions));
+    }
+
+    private void showAlert(Alert.AlertType type, String title, String message) {
+        Alert alert = new Alert(type);
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.setContentText(message);
+        alert.showAndWait();
     }
 }
