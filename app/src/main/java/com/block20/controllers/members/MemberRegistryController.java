@@ -2,6 +2,7 @@ package com.block20.controllers.members;
 
 import com.block20.models.Member;
 import com.block20.services.MemberService;
+import com.block20.models.AuditLog;
 
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -11,6 +12,8 @@ import javafx.scene.text.Text;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import java.util.function.Consumer;
+import java.util.List;
+
 
 public class MemberRegistryController extends ScrollPane {
     private VBox contentContainer;
@@ -114,6 +117,26 @@ public class MemberRegistryController extends ScrollPane {
         addProfileRow(grid, 2, "Plan:", member.getPlanType());
         addProfileRow(grid, 3, "Expires:", member.getExpiryDate().toString());
 
+VBox historyBox = new VBox(8);
+        historyBox.setPadding(new Insets(10, 0, 0, 0));
+        Label historyTitle = new Label("Activity History");
+        historyTitle.setStyle("-fx-font-weight: bold; -fx-text-fill: #64748B;");
+        
+        VBox historyList = new VBox(4);
+        List<AuditLog> logs = memberService.getMemberHistory(member.getMemberId());
+        
+        if (logs.isEmpty()) {
+            historyList.getChildren().add(new Label("No history recorded."));
+        } else {
+            for (AuditLog log : logs) {
+                Label entry = new Label("• " + log.getTimestampFormatted() + ": " + log.getAction());
+                Tooltip tip = new Tooltip(log.getDetails());
+                entry.setTooltip(tip); // Hover to see details
+                historyList.getChildren().add(entry);
+            }
+        }
+        historyBox.getChildren().addAll(historyTitle, new Separator(), historyList);
+
         // Action Buttons
         HBox actions = new HBox(12);
         actions.setAlignment(Pos.CENTER_RIGHT);
@@ -131,7 +154,7 @@ public class MemberRegistryController extends ScrollPane {
         
         actions.getChildren().addAll(editBtn, statusBtn, deleteBtn);
 
-        container.getChildren().addAll(header, new Separator(), grid, new Separator(), actions);
+        container.getChildren().addAll(header, new Separator(), grid, historyBox, new Separator(), actions);
         return container;
     }
 

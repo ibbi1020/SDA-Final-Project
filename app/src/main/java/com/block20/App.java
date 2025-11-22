@@ -23,6 +23,10 @@ import com.block20.repositories.EquipmentRepository;
 import com.block20.repositories.impl.EquipmentRepositoryImpl;
 import com.block20.services.EquipmentService;
 import com.block20.services.impl.EquipmentServiceImpl;
+import com.block20.services.AuditService;
+import com.block20.services.impl.AuditServiceImpl;
+import com.block20.repositories.AuditRepository;
+import com.block20.repositories.impl.AuditRepositoryImpl;
 
 public class App extends Application {
     
@@ -44,8 +48,11 @@ public class App extends Application {
         AttendanceRepository attendanceRepo = new AttendanceRepositoryImpl(); // <--- NEW!
         TransactionRepository transactionRepo = new TransactionRepositoryImpl(); // <--- NEW
         EquipmentRepository equipmentRepo = new EquipmentRepositoryImpl();
-        // 2. Create Service (Pass all 3)
-        this.memberService = new MemberServiceImpl(memberRepo, attendanceRepo, transactionRepo);
+        AuditRepository auditRepo = new AuditRepositoryImpl();
+
+    // 2. Services
+        AuditService auditService = new AuditServiceImpl(auditRepo);
+        this.memberService = new MemberServiceImpl(memberRepo, attendanceRepo, transactionRepo, auditService);
         this.equipmentService = new EquipmentServiceImpl(equipmentRepo); // <--- NEW
         // 3. Add Mock Data
         try {

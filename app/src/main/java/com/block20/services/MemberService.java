@@ -3,6 +3,7 @@ package com.block20.services;
 import com.block20.models.Member;
 import com.block20.models.Attendance;
 import com.block20.models.Transaction;
+import com.block20.models.AuditLog;
 import java.util.List;
 
 public interface MemberService {
@@ -20,4 +21,5 @@ public interface MemberService {
     void updateMemberDetails(String id, String name, String email, String phone, String address);
     void changeMemberStatus(String id, String newStatus); // For Suspend/Activate
     void deleteMember(String id);
+    List<AuditLog> getMemberHistory(String id);
 }

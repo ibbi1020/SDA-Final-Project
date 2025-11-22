@@ -3,10 +3,12 @@ package com.block20.services.impl;
 import com.block20.models.Attendance;
 import com.block20.models.Member;
 import com.block20.models.Transaction; // <--- NEW
+import com.block20.models.AuditLog; // <--- NEW
 import com.block20.repositories.AttendanceRepository;
 import com.block20.repositories.MemberRepository;
 import com.block20.repositories.TransactionRepository; // <--- NEW
 import com.block20.services.MemberService;
+import com.block20.services.AuditService; // <--- NEW
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
@@ -16,16 +18,17 @@ public class MemberServiceImpl implements MemberService {
     private MemberRepository memberRepo;
     private AttendanceRepository attendanceRepo;
     private TransactionRepository transactionRepo; // <--- NEW
+    private AuditService auditService; // <--- NEW
 
-    // UPDATED CONSTRUCTOR: Now takes 3 repositories
     public MemberServiceImpl(MemberRepository memberRepo, 
                              AttendanceRepository attendanceRepo,
-                             TransactionRepository transactionRepo) {
+                             TransactionRepository transactionRepo,
+                             AuditService auditService) { // <--- Add to constructor
         this.memberRepo = memberRepo;
         this.attendanceRepo = attendanceRepo;
         this.transactionRepo = transactionRepo;
+        this.auditService = auditService;
     }
-
     @Override
     public Member registerMember(String fullName, String email, String phone, String planType) {
         // 1. Validate Syntax
@@ -46,6 +49,7 @@ public class MemberServiceImpl implements MemberService {
         Transaction txn = new Transaction(txnId, newId, "Enrollment", fee);
         transactionRepo.save(txn);
         
+        auditService.logAction(newId, "CREATED", "Member enrolled with plan: " + planType);
         return newMember;
     }
 
@@ -156,6 +160,7 @@ public class MemberServiceImpl implements MemberService {
         m.setAddress(address); 
         
         memberRepo.save(m);
+        auditService.logAction(id, "PROFILE_UPDATE", "Changed details.");
         System.out.println("Audit: Profile updated for " + id);
     }
 
@@ -168,6 +173,7 @@ public class MemberServiceImpl implements MemberService {
             
         m.setStatus(newStatus);
         memberRepo.save(m);
+        auditService.logAction(id, "STATUS_CHANGE", "Status changed" );
     }
 
     @Override
@@ -195,5 +201,10 @@ public class MemberServiceImpl implements MemberService {
         if (phone == null || !phone.matches(phoneRegex)) {
             throw new IllegalArgumentException("Invalid phone format (Use 10 digits or 555-0199).");
         }
+        
+    }
+    @Override
+    public List<AuditLog> getMemberHistory(String memberId) {
+        return auditService.getLogsForMember(memberId);
     }
 }
