@@ -2,6 +2,7 @@ package com.block20.controllers.members;
 
 import com.block20.models.Member;
 import com.block20.services.MemberService;
+
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
@@ -21,27 +22,24 @@ public class MemberRegistryController extends ScrollPane {
     private ComboBox<String> planFilter;
     private Consumer<String> navigationHandler;
 
-    // NEW: The connection to the backend
+    // Service Dependency
     private MemberService memberService;
 
-    // UPDATED CONSTRUCTOR: Now accepts MemberService
     public MemberRegistryController(Consumer<String> navigationHandler, MemberService memberService) {
         this.navigationHandler = navigationHandler;
-        this.memberService = memberService; // Save the service
+        this.memberService = memberService;
         
         this.allMembers = FXCollections.observableArrayList();
         this.filteredMembers = FXCollections.observableArrayList();
         
         initialize();
-        loadMembersFromBackend(); // Load real data!
+        loadMembersFromBackend();
     }
 
     private void initialize() {
-        // Configure ScrollPane
         setFitToWidth(true);
         setFitToHeight(false);
         setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
-        setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         getStyleClass().add("content-scroll-pane");
         
         contentContainer = new VBox(24);
@@ -58,34 +56,184 @@ public class MemberRegistryController extends ScrollPane {
         setContent(contentContainer);
     }
 
-    // NEW: Fetch data from the Service (Layer 3)
     private void loadMembersFromBackend() {
         allMembers.clear();
         if (memberService != null) {
-            // This calls the backend!
             allMembers.addAll(memberService.getAllMembers());
         }
         filterMembers();
     }
 
+    // --- 1. PROFILE VIEW LOGIC (The missing part) ---
+
+    private void showMemberProfile(Member member) {
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Member Profile");
+        dialog.setHeaderText(null);
+
+        VBox content = createMemberProfileContent(member);
+        content.setPrefWidth(600);
+
+        dialog.getDialogPane().setContent(content);
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.CLOSE);
+        dialog.showAndWait();
+    }
+
+    private VBox createMemberProfileContent(Member member) {
+        VBox container = new VBox(24);
+        container.setPadding(new Insets(24));
+
+        // Header
+        HBox header = new HBox(20);
+        header.setAlignment(Pos.CENTER_LEFT);
+        
+        VBox photoBox = new VBox();
+        photoBox.setPrefSize(80, 80);
+        photoBox.setStyle("-fx-background-color: #E0E7FF; -fx-background-radius: 50%; -fx-alignment: center;");
+        Text initials = new Text(member.getFullName().substring(0, 1));
+        initials.setStyle("-fx-font-size: 32px; -fx-font-weight: 700; -fx-fill: #2563EB;");
+        photoBox.getChildren().add(initials);
+
+        VBox infoBox = new VBox(8);
+        Text name = new Text(member.getFullName());
+        name.setStyle("-fx-font-size: 24px; -fx-font-weight: bold;");
+        
+        HBox statusBox = new HBox(8);
+        Label statusBadge = new Label(member.getStatus());
+        statusBadge.setStyle("-fx-background-color: " + ("Active".equals(member.getStatus()) ? "#D1FAE5" : "#FEE2E2") + "; -fx-padding: 4 8; -fx-background-radius: 4;");
+        statusBox.getChildren().addAll(statusBadge, new Text("ID: " + member.getMemberId()));
+
+        infoBox.getChildren().addAll(name, statusBox);
+        header.getChildren().addAll(photoBox, infoBox);
+
+        // Details Grid
+        GridPane grid = new GridPane();
+        grid.setHgap(16); grid.setVgap(12);
+        addProfileRow(grid, 0, "Email:", member.getEmail());
+        addProfileRow(grid, 1, "Phone:", member.getPhone());
+        addProfileRow(grid, 2, "Plan:", member.getPlanType());
+        addProfileRow(grid, 3, "Expires:", member.getExpiryDate().toString());
+
+        // Action Buttons
+        HBox actions = new HBox(12);
+        actions.setAlignment(Pos.CENTER_RIGHT);
+        
+        Button editBtn = new Button("Edit");
+        editBtn.setOnAction(e -> showEditDialog(member));
+        
+        Button statusBtn = new Button(member.getStatus().equals("Suspended") ? "Activate" : "Suspend");
+        statusBtn.getStyleClass().add("btn-warning");
+        statusBtn.setOnAction(e -> toggleMemberStatus(member));
+        
+        Button deleteBtn = new Button("Delete");
+        deleteBtn.getStyleClass().add("btn-danger");
+        deleteBtn.setOnAction(e -> deleteMember(member));
+        
+        actions.getChildren().addAll(editBtn, statusBtn, deleteBtn);
+
+        container.getChildren().addAll(header, new Separator(), grid, new Separator(), actions);
+        return container;
+    }
+
+    private void addProfileRow(GridPane grid, int row, String label, String value) {
+        Text l = new Text(label); l.setStyle("-fx-font-weight: bold; -fx-fill: #64748B;");
+        Text v = new Text(value);
+        grid.add(l, 0, row); grid.add(v, 1, row);
+    }
+
+    // --- 2. EDIT / SUSPEND / DELETE LOGIC ---
+
+    private void showEditDialog(Member member) {
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Edit Member");
+        dialog.setHeaderText("Editing " + member.getFullName());
+
+        ButtonType saveBtn = new ButtonType("Save", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(saveBtn, ButtonType.CANCEL);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(10); grid.setVgap(10); grid.setPadding(new Insets(20, 150, 10, 10));
+
+        TextField nameField = new TextField(member.getFullName());
+        TextField emailField = new TextField(member.getEmail());
+        TextField phoneField = new TextField(member.getPhone());
+
+        grid.add(new Label("Name:"), 0, 0); grid.add(nameField, 1, 0);
+        grid.add(new Label("Email:"), 0, 1); grid.add(emailField, 1, 1);
+        grid.add(new Label("Phone:"), 0, 2); grid.add(phoneField, 1, 2);
+
+        dialog.getDialogPane().setContent(grid);
+
+        dialog.showAndWait().ifPresent(response -> {
+            if (response == saveBtn) {
+                try {
+                    memberService.updateMemberDetails(member.getMemberId(), nameField.getText(), emailField.getText(), phoneField.getText(), "");
+                    loadMembersFromBackend(); // Refresh UI
+                } catch (Exception e) {
+                    showAlert("Update Failed", e.getMessage());
+                }
+            }
+        });
+    }
+
+private void toggleMemberStatus(Member member) {
+        String newStatus = member.getStatus().equals("Suspended") ? "Active" : "Suspended";
+        String message = "Member is now " + newStatus;
+
+        // --- NEW SECURITY LOGIC ---
+        // If we are suspending them, force a check-out if they are currently in the gym
+        if ("Suspended".equals(newStatus)) {
+            if (memberService.isMemberCheckedIn(member.getMemberId())) {
+                try {
+                    memberService.checkOutMember(member.getMemberId());
+                    message += "\n(Auto-checked out from facility)";
+                    System.out.println("Security: Force checked-out " + member.getFullName() + " due to suspension.");
+                } catch (Exception e) {
+                    System.err.println("Failed to force checkout: " + e.getMessage());
+                }
+            }
+        }
+        // ---------------------------
+
+        memberService.changeMemberStatus(member.getMemberId(), newStatus);
+        loadMembersFromBackend(); // Refresh the table to show Red badge
+        showAlert("Status Updated", message);
+    }
+
+    private void deleteMember(Member member) {
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+        confirm.setHeaderText("Delete " + member.getFullName() + "?");
+        confirm.setContentText("This cannot be undone.");
+        
+        confirm.showAndWait().ifPresent(response -> {
+            if (response == ButtonType.OK) {
+                memberService.deleteMember(member.getMemberId());
+                loadMembersFromBackend();
+            }
+        });
+    }
+
+    private void showAlert(String title, String content) {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.setContentText(content);
+        alert.showAndWait();
+    }
+
+    // --- 3. STANDARD UI COMPONENTS (Header, Filter, Table) ---
+
     private HBox createHeader() {
         HBox header = new HBox(16);
         header.setAlignment(Pos.CENTER_LEFT);
-
         VBox titleBox = new VBox(4);
-        Text title = new Text("Member Registry");
-        title.getStyleClass().add("text-h2");
-        Text subtitle = new Text("Search, view, and manage all gym members");
-        subtitle.getStyleClass().add("text-muted");
+        Text title = new Text("Member Registry"); title.getStyleClass().add("text-h2");
+        Text subtitle = new Text("Search, view, and manage all gym members"); subtitle.getStyleClass().add("text-muted");
         titleBox.getChildren().addAll(title, subtitle);
-
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-
+        Region spacer = new Region(); HBox.setHgrow(spacer, Priority.ALWAYS);
         Button enrollButton = new Button("+ New Member Enrollment");
         enrollButton.getStyleClass().addAll("btn", "btn-primary");
         enrollButton.setOnAction(e -> navigationHandler.accept("enrollment-new"));
-
         header.getChildren().addAll(titleBox, spacer, enrollButton);
         return header;
     }
@@ -94,92 +242,58 @@ public class MemberRegistryController extends ScrollPane {
         VBox container = new VBox(16);
         container.getStyleClass().add("card");
         container.setPadding(new Insets(20));
-
-        // Search bar
+        
         HBox searchBox = new HBox(12);
         searchBox.setAlignment(Pos.CENTER_LEFT);
-
-        Label searchLabel = new Label("🔍");
-        searchLabel.setStyle("-fx-font-size: 18px;");
-
         searchField = new TextField();
-        searchField.setPromptText("Search by name, email, phone, or membership ID...");
-        searchField.getStyleClass().add("search-input");
+        searchField.setPromptText("Search by name, email, phone...");
         searchField.setPrefWidth(500);
         searchField.textProperty().addListener((obs, oldVal, newVal) -> filterMembers());
-        HBox.setHgrow(searchField, Priority.ALWAYS);
+        searchBox.getChildren().addAll(new Label("🔍"), searchField);
 
-        Button searchButton = new Button("Search");
-        searchButton.getStyleClass().addAll("btn", "btn-primary");
-        searchButton.setOnAction(e -> filterMembers());
-
-        searchBox.getChildren().addAll(searchLabel, searchField, searchButton);
-
-        // Filters row
         HBox filtersBox = new HBox(16);
         filtersBox.setAlignment(Pos.CENTER_LEFT);
-
-        Text filtersLabel = new Text("Filters:");
-        filtersLabel.getStyleClass().add("text-body");
-
-        // Status filter
-        VBox statusBox = new VBox(4);
-        Label statusLabel = new Label("Status");
-        statusLabel.getStyleClass().add("text-caption");
+        
         statusFilter = new ComboBox<>();
-        statusFilter.getItems().addAll("All Statuses", "Active", "Expired", "Pending", "Suspended");
+        statusFilter.getItems().addAll("All Statuses", "Active", "Expired", "Suspended");
         statusFilter.setValue("All Statuses");
         statusFilter.setOnAction(e -> filterMembers());
-        statusBox.getChildren().addAll(statusLabel, statusFilter);
-
-        // Plan filter
-        VBox planBox = new VBox(4);
-        Label planLabel = new Label("Plan Type");
-        planLabel.getStyleClass().add("text-caption");
+        
         planFilter = new ComboBox<>();
         planFilter.getItems().addAll("All Plans", "Basic", "Premium", "Elite", "Student");
         planFilter.setValue("All Plans");
         planFilter.setOnAction(e -> filterMembers());
-        planBox.getChildren().addAll(planLabel, planFilter);
-
-        Button clearButton = new Button("Clear Filters");
-        clearButton.getStyleClass().addAll("btn", "btn-ghost");
-        clearButton.setOnAction(e -> clearFilters());
-
-        filtersBox.getChildren().addAll(filtersLabel, statusBox, planBox, clearButton);
-
+        
+        Button clearBtn = new Button("Clear Filters");
+        clearBtn.setOnAction(e -> { searchField.clear(); statusFilter.setValue("All Statuses"); planFilter.setValue("All Plans"); });
+        
+        filtersBox.getChildren().addAll(new Label("Filters:"), statusFilter, planFilter, clearBtn);
         container.getChildren().addAll(searchBox, new Separator(), filtersBox);
         return container;
     }
 
     private HBox createStatsBar() {
-        // Note: In a real app, we would calculate these stats dynamically from 'allMembers'
         HBox statsBar = new HBox(24);
         statsBar.getStyleClass().add("stats-bar");
         statsBar.setPadding(new Insets(16, 20, 16, 20));
-        statsBar.setAlignment(Pos.CENTER_LEFT);
-
+        
+        long total = allMembers.size();
+        long active = allMembers.stream().filter(m -> "Active".equals(m.getStatus())).count();
+        long suspended = allMembers.stream().filter(m -> "Suspended".equals(m.getStatus())).count();
+        
         statsBar.getChildren().addAll(
-            createStatItem("Total Members", String.valueOf(allMembers.size()), "#2563EB"),
-            createStatItem("Active", "0", "#10B981"), // Placeholder
-            createStatItem("Expired", "0", "#F59E0B") // Placeholder
+            createStatItem("Total Members", String.valueOf(total), "#2563EB"),
+            createStatItem("Active", String.valueOf(active), "#10B981"),
+            createStatItem("Suspended", String.valueOf(suspended), "#EF4444")
         );
-
         return statsBar;
     }
 
     private VBox createStatItem(String label, String value, String color) {
         VBox item = new VBox(4);
-        item.setAlignment(Pos.CENTER_LEFT);
-
-        Text valueText = new Text(value);
-        valueText.setStyle("-fx-font-size: 20px; -fx-font-weight: 700; -fx-fill: " + color + ";");
-
-        Text labelText = new Text(label);
-        labelText.getStyleClass().add("text-caption");
-        labelText.setStyle("-fx-fill: #64748B;");
-
-        item.getChildren().addAll(valueText, labelText);
+        Text val = new Text(value); val.setStyle("-fx-font-size: 20px; -fx-font-weight: 700; -fx-fill: " + color + ";");
+        Text lbl = new Text(label); lbl.getStyleClass().add("text-caption");
+        item.getChildren().addAll(val, lbl);
         return item;
     }
 
@@ -188,100 +302,58 @@ public class MemberRegistryController extends ScrollPane {
         container.getStyleClass().add("card");
         container.setPadding(new Insets(20));
 
-        HBox tableHeader = new HBox(16);
-        tableHeader.setAlignment(Pos.CENTER_LEFT);
-
-        Text tableTitle = new Text("Members List");
-        tableTitle.getStyleClass().add("text-h4");
-
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-
-        Text resultsCount = new Text(filteredMembers.size() + " results");
-        resultsCount.getStyleClass().add("text-muted");
-
-        tableHeader.getChildren().addAll(tableTitle, spacer, resultsCount);
-
-        // Create table
         membersTable = new TableView<>();
         membersTable.setItems(filteredMembers);
-        membersTable.getStyleClass().add("data-table");
         membersTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
 
-        // --- UPDATED COLUMN MAPPINGS TO MATCH BACKEND MODEL ---
+        TableColumn<Member, String> idCol = new TableColumn<>("ID");
+        idCol.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(d.getValue().getMemberId()));
 
-        // Member ID
-        TableColumn<Member, String> idCol = new TableColumn<>("Member ID");
-        idCol.setCellValueFactory(cellData -> new javafx.beans.property.SimpleStringProperty(cellData.getValue().getMemberId()));
-
-        // Name (Mapped to getFullName in backend)
         TableColumn<Member, String> nameCol = new TableColumn<>("Name");
-        nameCol.setCellValueFactory(cellData -> new javafx.beans.property.SimpleStringProperty(cellData.getValue().getFullName()));
+        nameCol.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(d.getValue().getFullName()));
 
-        // Email
         TableColumn<Member, String> emailCol = new TableColumn<>("Email");
-        emailCol.setCellValueFactory(cellData -> new javafx.beans.property.SimpleStringProperty(cellData.getValue().getEmail()));
+        emailCol.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(d.getValue().getEmail()));
 
-        // Phone
-        TableColumn<Member, String> phoneCol = new TableColumn<>("Phone");
-        phoneCol.setCellValueFactory(cellData -> new javafx.beans.property.SimpleStringProperty(cellData.getValue().getPhone()));
-
-        // Plan
         TableColumn<Member, String> planCol = new TableColumn<>("Plan");
-        planCol.setCellValueFactory(cellData -> new javafx.beans.property.SimpleStringProperty(cellData.getValue().getPlanType()));
+        planCol.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(d.getValue().getPlanType()));
 
-        // Status
         TableColumn<Member, String> statusCol = new TableColumn<>("Status");
-        statusCol.setCellValueFactory(cellData -> new javafx.beans.property.SimpleStringProperty(cellData.getValue().getStatus()));
+        statusCol.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(d.getValue().getStatus()));
         statusCol.setCellFactory(col -> new TableCell<Member, String>() {
             @Override
-            protected void updateItem(String status, boolean empty) {
-                super.updateItem(status, empty);
-                if (empty || status == null) {
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
                     setGraphic(null);
                 } else {
-                    Label badge = new Label(status);
+                    Label badge = new Label(item);
                     badge.getStyleClass().add("badge");
-                    badge.getStyleClass().add("badge-" + status.toLowerCase());
+                    if ("Active".equals(item)) badge.setStyle("-fx-background-color: #D1FAE5; -fx-text-fill: #065F46;");
+                    else badge.setStyle("-fx-background-color: #FEE2E2; -fx-text-fill: #991B1B;");
                     setGraphic(badge);
                 }
             }
         });
 
-        // Actions
-        TableColumn<Member, Void> actionsCol = new TableColumn<>("Actions");
-        actionsCol.setCellFactory(col -> new TableCell<Member, Void>() {
-            private final Button viewButton = new Button("View");
+        TableColumn<Member, Void> actionCol = new TableColumn<>("Actions");
+        actionCol.setCellFactory(col -> new TableCell<Member, Void>() {
+            private final Button btn = new Button("View");
             {
-                viewButton.getStyleClass().addAll("btn", "btn-sm", "btn-primary");
-                viewButton.setOnAction(e -> {
-                    Member member = getTableView().getItems().get(getIndex());
-                    showMemberProfile(member);
-                });
+                btn.getStyleClass().addAll("btn", "btn-sm", "btn-primary");
+                btn.setOnAction(e -> showMemberProfile(getTableView().getItems().get(getIndex())));
             }
             @Override
             protected void updateItem(Void item, boolean empty) {
                 super.updateItem(item, empty);
-                if (empty) setGraphic(null);
-                else setGraphic(viewButton);
+                if (empty) setGraphic(null); else setGraphic(btn);
             }
         });
 
-        membersTable.getColumns().addAll(idCol, nameCol, emailCol, phoneCol, planCol, statusCol, actionsCol);
-        membersTable.setPlaceholder(new Label("No members found."));
-
-        container.getChildren().addAll(tableHeader, membersTable);
+        membersTable.getColumns().addAll(idCol, nameCol, emailCol, planCol, statusCol, actionCol);
+        container.getChildren().add(membersTable);
         VBox.setVgrow(membersTable, Priority.ALWAYS);
         return container;
-    }
-
-    private void showMemberProfile(Member member) {
-        // Simple Alert for now (since our backend model is basic)
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.setTitle("Member Profile");
-        alert.setHeaderText(member.getFullName());
-        alert.setContentText("ID: " + member.getMemberId() + "\nEmail: " + member.getEmail() + "\nPlan: " + member.getPlanType());
-        alert.showAndWait();
     }
 
     private void filterMembers() {
@@ -305,12 +377,5 @@ public class MemberRegistryController extends ScrollPane {
                 filteredMembers.add(member);
             }
         }
-    }
-
-    private void clearFilters() {
-        searchField.clear();
-        statusFilter.setValue("All Statuses");
-        planFilter.setValue("All Plans");
-        filterMembers();
     }
 }

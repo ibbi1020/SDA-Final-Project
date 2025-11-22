@@ -16,4 +16,8 @@ public interface MemberService {
     int getCurrentOccupancyCount();
     void renewMembership(String memberId, String newPlanType);
     List<Transaction> getAllTransactions();
+    List<Attendance> getAllAttendanceRecords(); 
+    void updateMemberDetails(String id, String name, String email, String phone, String address);
+    void changeMemberStatus(String id, String newStatus); // For Suspend/Activate
+    void deleteMember(String id);
 }

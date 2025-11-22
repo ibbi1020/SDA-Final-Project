@@ -118,18 +118,15 @@ public class StaffPortalView {
         }
     }
     
-    /**
-     * Show the dashboard view
-     */
     private void showDashboard() {
-        StaffDashboardController dashboard = new StaffDashboardController(staffName);
+        // Pass BOTH services
+        StaffDashboardController dashboard = new StaffDashboardController(staffName, memberService, equipmentService);
         setContent(dashboard);
     }
-    
     /**
      * Show check-in/check-out view
      */
-private void showCheckIn() {
+    private void showCheckIn() {
         // PASS THE SERVICE
         CheckInController checkInController = new CheckInController(this.memberService);
         setContent(checkInController);
@@ -138,7 +135,7 @@ private void showCheckIn() {
     /**
      * Show member registry view (combines search, create, attendance)
      */
-private void showMembersRegistry() {
+    private void showMembersRegistry() {
     // Pass the service (the "Brain") to the controller
     MemberRegistryController memberRegistry = new MemberRegistryController(this::handleNavigation, this.memberService);
     setContent(memberRegistry);
@@ -147,7 +144,7 @@ private void showMembersRegistry() {
     /**
      * Show new enrollment view
      */
-private void showEnrollmentNew() {
+    private void showEnrollmentNew() {
         // PASS 'this.memberService' into the constructor
         EnrollmentController enrollmentController = new EnrollmentController(this::handleNavigation, this.memberService);
         setContent(enrollmentController);
@@ -156,7 +153,7 @@ private void showEnrollmentNew() {
     /**
      * Show renewals view (pending renewals + renewal processing)
      */
-private void showRenewals() {
+    private void showRenewals() {
         // PASS THE SERVICE
         RenewalsController renewalsController = new RenewalsController(this::handleNavigation, this.memberService);
         setContent(renewalsController.getView()); // Note: check if your controller extends Region or has getView()
@@ -181,7 +178,7 @@ private void showRenewals() {
     /**
      * Show equipment inventory view (includes add equipment)
      */
-private void showEquipmentInventory() {
+    private void showEquipmentInventory() {
         // Pass the service to the controller
         EquipmentInventoryController controller = new EquipmentInventoryController(this::handleNavigation, this.equipmentService);
         setContent(controller);
@@ -198,18 +195,16 @@ private void showEquipmentInventory() {
     /**
      * Show financial reports view
      */
-private void showReportsFinancial() {
+    private void showReportsFinancial() {
         // PASS THE SERVICE
         FinancialReportsController financialReportsController = new FinancialReportsController(this::handleNavigation, this.memberService);
         setContent(financialReportsController); // Add .getView() if your controller requires it
     }
     
-    /**
-     * Show operational reports view
-     */
     private void showReportsOperational() {
-        OperationalReportsController operationalReportsController = new OperationalReportsController(this::handleNavigation);
-        setContent(operationalReportsController);
+        // PASS THE SERVICE
+        OperationalReportsController controller = new OperationalReportsController(this::handleNavigation, this.memberService);
+        setContent(controller);
     }
     
     /**

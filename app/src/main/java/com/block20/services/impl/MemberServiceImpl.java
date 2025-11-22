@@ -28,19 +28,23 @@ public class MemberServiceImpl implements MemberService {
 
     @Override
     public Member registerMember(String fullName, String email, String phone, String planType) {
-        if (email == null || !email.contains("@")) throw new IllegalArgumentException("Invalid email!");
-        if (memberRepo.findByEmail(email) != null) throw new IllegalArgumentException("Member with this email already exists!");
+        // 1. Validate Syntax
+        validateMemberData(fullName, email, phone);
+
+        // 2. Check Duplicates (Business Rule)
+        if (memberRepo.findByEmail(email) != null) {
+            throw new IllegalArgumentException("Member with this email already exists!");
+        }
 
         String newId = "M" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
         Member newMember = new Member(newId, fullName, email, phone, planType);
         memberRepo.save(newMember);
         
-        // --- NEW: RECORD PAYMENT ---
+        // Record Transaction
         double fee = getPlanPrice(planType);
         String txnId = "TXN" + System.currentTimeMillis();
         Transaction txn = new Transaction(txnId, newId, "Enrollment", fee);
         transactionRepo.save(txn);
-        // ---------------------------
         
         return newMember;
     }
@@ -123,5 +127,73 @@ public class MemberServiceImpl implements MemberService {
     @Override
     public List<Transaction> getAllTransactions() {
         return transactionRepo.findAll();
+    }
+    @Override
+    public List<Attendance> getAllAttendanceRecords() {
+        return attendanceRepo.findAll();
+    }
+    @Override
+    public void updateMemberDetails(String id, String name, String email, String phone, String address) {
+        Member m = memberRepo.findAll().stream()
+            .filter(member -> member.getMemberId().equals(id))
+            .findFirst()
+            .orElseThrow(() -> new IllegalArgumentException("Member not found"));
+            
+        // 1. Validate Syntax
+        validateMemberData(name, email, phone);
+        
+        // 2. Check Email Uniqueness (Only if email changed)
+        if (!m.getEmail().equalsIgnoreCase(email)) {
+            if (memberRepo.findByEmail(email) != null) {
+                throw new IllegalArgumentException("Email is already taken by another member.");
+            }
+        }
+        
+        // Update fields
+        m.setFullName(name);
+        m.setEmail(email);
+        m.setPhone(phone);
+        m.setAddress(address); 
+        
+        memberRepo.save(m);
+        System.out.println("Audit: Profile updated for " + id);
+    }
+
+    @Override
+    public void changeMemberStatus(String id, String newStatus) {
+        Member m = memberRepo.findAll().stream()
+            .filter(member -> member.getMemberId().equals(id))
+            .findFirst()
+            .orElseThrow(() -> new IllegalArgumentException("Member not found"));
+            
+        m.setStatus(newStatus);
+        memberRepo.save(m);
+    }
+
+    @Override
+    public void deleteMember(String id) {
+        // Check for active debt? (Skipping for now, but this is where that logic goes)
+        memberRepo.delete(id);
+    }
+    // --- VALIDATION LOGIC ---
+    private void validateMemberData(String name, String email, String phone) {
+        // 1. Check Empty Fields
+        if (name == null || name.trim().isEmpty()) {
+            throw new IllegalArgumentException("Member name cannot be empty.");
+        }
+        
+        // 2. Check Email Regex (Standard Pattern)
+        // Allows: name@domain.com
+        String emailRegex = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$";
+        if (email == null || !email.matches(emailRegex)) {
+            throw new IllegalArgumentException("Invalid email format (Example: user@mail.com).");
+        }
+
+        // 3. Check Phone Regex
+        // Allows: 10 digits (1234567890) or dashes (123-456-7890)
+        String phoneRegex = "^\\d{10}|\\d{3}-\\d{3}-\\d{4}|\\d{3}-\\d{4}$";
+        if (phone == null || !phone.matches(phoneRegex)) {
+            throw new IllegalArgumentException("Invalid phone format (Use 10 digits or 555-0199).");
+        }
     }
 }

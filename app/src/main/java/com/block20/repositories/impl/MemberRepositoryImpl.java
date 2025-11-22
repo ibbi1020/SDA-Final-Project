@@ -45,4 +45,9 @@ public class MemberRepositoryImpl implements MemberRepository {
     public List<Member> findAll() {
         return new ArrayList<>(memberTable);
     }
+    @Override
+    public void delete(String memberId) {
+        memberTable.removeIf(m -> m.getMemberId().equals(memberId));
+        System.out.println("Repo: Deleted member " + memberId);
+    }
 }

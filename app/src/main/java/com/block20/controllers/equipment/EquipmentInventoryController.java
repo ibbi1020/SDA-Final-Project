@@ -10,12 +10,17 @@ import javafx.scene.layout.*;
 import javafx.scene.text.Text;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import java.util.List;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 public class EquipmentInventoryController extends ScrollPane {
     private VBox contentContainer;
     private TableView<Equipment> equipmentTable;
     private ObservableList<Equipment> inventoryList;
+    
+    // NEW: Search Field
+    private TextField searchField;
     
     private Consumer<String> navigationHandler;
     private EquipmentService equipmentService;
@@ -49,8 +54,27 @@ public class EquipmentInventoryController extends ScrollPane {
     }
 
     private void loadData() {
+        // Initial load - show everything
+        filterData(""); 
+    }
+
+    // NEW: Filter Logic
+    private void filterData(String query) {
         inventoryList.clear();
-        inventoryList.addAll(equipmentService.getInventory());
+        List<Equipment> allItems = equipmentService.getInventory();
+        
+        if (query == null || query.isEmpty()) {
+            inventoryList.addAll(allItems);
+        } else {
+            String lowerQuery = query.toLowerCase();
+            List<Equipment> filtered = allItems.stream()
+                .filter(e -> e.getName().toLowerCase().contains(lowerQuery) || 
+                             e.getCategory().toLowerCase().contains(lowerQuery) || 
+                             e.getStatus().toLowerCase().contains(lowerQuery) ||
+                             e.getEquipmentId().toLowerCase().contains(lowerQuery))
+                .collect(Collectors.toList());
+            inventoryList.addAll(filtered);
+        }
     }
 
     private VBox createHeader() {
@@ -67,11 +91,24 @@ public class EquipmentInventoryController extends ScrollPane {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
+        // NEW: Search Bar
+        HBox searchBox = new HBox(10);
+        searchBox.setAlignment(Pos.CENTER_RIGHT);
+        
+        searchField = new TextField();
+        searchField.setPromptText("Search inventory...");
+        searchField.setPrefWidth(250);
+        searchField.getStyleClass().add("search-input");
+        // Listener: Updates table instantly as you type
+        searchField.textProperty().addListener((obs, oldVal, newVal) -> filterData(newVal));
+        
         Button addButton = new Button("+ Add Equipment");
         addButton.getStyleClass().addAll("btn", "btn-primary");
         addButton.setOnAction(e -> showAddDialog());
 
-        header.getChildren().addAll(titleBox, spacer, addButton);
+        searchBox.getChildren().addAll(searchField, addButton);
+
+        header.getChildren().addAll(titleBox, spacer, searchBox);
         return new VBox(header);
     }
 
@@ -79,8 +116,10 @@ public class EquipmentInventoryController extends ScrollPane {
         HBox stats = new HBox(24);
         stats.setPadding(new Insets(10, 0, 10, 0));
         
-        long total = equipmentService.getInventory().size();
-        long broken = equipmentService.getInventory().stream().filter(e -> !e.getStatus().equals("Functional")).count();
+        // Recalculate stats based on live data
+        List<Equipment> currentList = equipmentService.getInventory();
+        long total = currentList.size();
+        long broken = currentList.stream().filter(e -> !e.getStatus().equals("Functional")).count();
         
         stats.getChildren().addAll(
             createStat("Total Assets", String.valueOf(total), "#2563EB"),
@@ -151,6 +190,10 @@ public class EquipmentInventoryController extends ScrollPane {
         });
 
         equipmentTable.getColumns().addAll(idCol, nameCol, catCol, statusCol, actionCol);
+        
+        // Placeholder if search yields no results
+        equipmentTable.setPlaceholder(new Label("No equipment found matching your search."));
+        
         container.getChildren().add(equipmentTable);
         return container;
     }
@@ -187,6 +230,7 @@ public class EquipmentInventoryController extends ScrollPane {
     private void toggleStatus(Equipment item) {
         String newStatus = item.getStatus().equals("Functional") ? "Maintenance" : "Functional";
         equipmentService.updateStatus(item.getEquipmentId(), newStatus);
-        loadData(); // Refresh UI
+        // Refresh the data but KEEP the search term
+        filterData(searchField.getText()); 
     }
 }
