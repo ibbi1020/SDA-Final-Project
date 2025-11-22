@@ -15,6 +15,8 @@ import com.block20.views.StaffPortalView;
 import javafx.application.Application;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
+import com.block20.repositories.AttendanceRepository;
+import com.block20.repositories.impl.AttendanceRepositoryImpl;
 
 public class App extends Application {
     
@@ -30,16 +32,26 @@ public class App extends Application {
         // INITIALIZE BACKEND (Using the Clean Architecture)
         // ============================================================
         
-        // 1. Create Repository
+    // 1. Create Repositories (The "Databases")
         MemberRepository memberRepo = new MemberRepositoryImpl();
+        AttendanceRepository attendanceRepo = new AttendanceRepositoryImpl(); // <--- NEW!
         
-        // 2. Create Service
-        this.memberService = new MemberServiceImpl(memberRepo);
+        // 2. Create Service (The "Brain")
+        // Now we pass BOTH repositories to the service
+        this.memberService = new MemberServiceImpl(memberRepo, attendanceRepo); 
 
         // 3. Add Mock Data
         try {
             memberService.registerMember("John Doe", "john@example.com", "555-0101", "Premium");
             memberService.registerMember("Jane Smith", "jane@example.com", "555-0102", "Basic");
+            
+            // Add a fake check-in for John Doe so we can see history immediately
+            // (We need to find him first to get his generated ID)
+            com.block20.models.Member john = memberRepo.findByEmail("john@example.com");
+            if (john != null) {
+                memberService.checkInMember(john.getMemberId());
+            }
+            
         } catch (Exception e) {
             e.printStackTrace();
         }

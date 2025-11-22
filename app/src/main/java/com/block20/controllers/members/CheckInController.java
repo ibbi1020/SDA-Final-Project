@@ -1,5 +1,9 @@
 package com.block20.controllers.members;
 
+import com.block20.models.Attendance;
+import com.block20.models.Member;
+import com.block20.services.MemberService;
+
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
@@ -11,6 +15,7 @@ import javafx.animation.PauseTransition;
 import javafx.util.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 
 public class CheckInController extends ScrollPane {
     private VBox contentContainer;
@@ -18,19 +23,23 @@ public class CheckInController extends ScrollPane {
     private VBox searchResultsBox;
     private VBox recentActivityBox;
     private ObservableList<CheckInRecord> recentActivity;
-    private Label occupancyLabel;
+    
+    // UI Components that need updating
+    private Text currentCountText; // <--- NEW: Class level reference
     private ProgressBar occupancyBar;
-    private int currentOccupancy = 47;
+    
+    private int currentOccupancy = 0;
     private int maxCapacity = 150;
+    
+    private MemberService memberService;
 
-    public CheckInController() {
+    public CheckInController(MemberService memberService) {
+        this.memberService = memberService;
         this.recentActivity = FXCollections.observableArrayList();
-        loadMockRecentActivity();
         initialize();
     }
 
     private void initialize() {
-        // Configure ScrollPane
         setFitToWidth(true);
         setFitToHeight(false);
         setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
@@ -48,19 +57,21 @@ public class CheckInController extends ScrollPane {
             createRecentActivitySection()
         );
         
-        // Set content
         setContent(contentContainer);
+
+        // 1. Get the REAL count from the database
+        this.currentOccupancy = memberService.getCurrentOccupancyCount();
+        
+        // 2. Update the UI immediately to match
+        updateOccupancyUI();
     }
 
     private VBox createHeader() {
         VBox header = new VBox(8);
-
         Text title = new Text("Check-In / Check-Out");
         title.getStyleClass().add("text-h2");
-
         Text subtitle = new Text("Quickly check members in and out of the facility");
         subtitle.getStyleClass().add("text-muted");
-
         header.getChildren().addAll(title, subtitle);
         return header;
     }
@@ -71,7 +82,6 @@ public class CheckInController extends ScrollPane {
         card.setPadding(new Insets(24));
         card.setAlignment(Pos.CENTER_LEFT);
 
-        // Current occupancy display
         VBox occupancyInfo = new VBox(12);
         occupancyInfo.setAlignment(Pos.CENTER_LEFT);
         HBox.setHgrow(occupancyInfo, Priority.ALWAYS);
@@ -79,57 +89,44 @@ public class CheckInController extends ScrollPane {
         HBox occupancyNumbers = new HBox(8);
         occupancyNumbers.setAlignment(Pos.BASELINE_LEFT);
 
-        Text currentCount = new Text(String.valueOf(currentOccupancy));
-        currentCount.setStyle("-fx-font-size: 48px; -fx-font-weight: 700; -fx-fill: #2563EB;");
+        // FIX: Assign to class variable so we can update it later
+        currentCountText = new Text(String.valueOf(currentOccupancy));
+        currentCountText.setStyle("-fx-font-size: 48px; -fx-font-weight: 700; -fx-fill: #2563EB;");
 
         Text separator = new Text("/");
         separator.setStyle("-fx-font-size: 32px; -fx-fill: #94A3B8;");
-
         Text maxCount = new Text(String.valueOf(maxCapacity));
         maxCount.setStyle("-fx-font-size: 32px; -fx-font-weight: 600; -fx-fill: #64748B;");
 
-        occupancyNumbers.getChildren().addAll(currentCount, separator, maxCount);
+        occupancyNumbers.getChildren().addAll(currentCountText, separator, maxCount);
 
         Text occupancyLabel = new Text("Current Occupancy");
         occupancyLabel.getStyleClass().add("text-body");
         occupancyLabel.setStyle("-fx-fill: #475569;");
 
-        // Progress bar
         VBox progressBox = new VBox(8);
         progressBox.setPrefWidth(400);
 
         occupancyBar = new ProgressBar();
         occupancyBar.setPrefWidth(400);
         occupancyBar.setPrefHeight(12);
-        occupancyBar.setProgress((double) currentOccupancy / maxCapacity);
+        occupancyBar.setProgress(0.0);
         occupancyBar.getStyleClass().add("occupancy-progress");
 
-        Text percentageText = new Text(String.format("%.0f%% Capacity", (double) currentOccupancy / maxCapacity * 100));
-        percentageText.getStyleClass().add("text-caption");
-        percentageText.setStyle("-fx-fill: #64748B;");
-
-        progressBox.getChildren().addAll(occupancyBar, percentageText);
-
+        progressBox.getChildren().addAll(occupancyBar);
         occupancyInfo.getChildren().addAll(occupancyNumbers, occupancyLabel, progressBox);
 
-        // Status indicator
+        // Status Box
         VBox statusBox = new VBox(12);
         statusBox.setAlignment(Pos.CENTER);
         statusBox.setPadding(new Insets(16));
         statusBox.setStyle("-fx-background-color: #F0FDF4; -fx-background-radius: 8px; -fx-min-width: 150px;");
-
         Text statusIcon = new Text("✓");
         statusIcon.setStyle("-fx-font-size: 32px; -fx-fill: #10B981;");
-
         Text statusText = new Text("Normal");
         statusText.getStyleClass().add("text-h5");
         statusText.setStyle("-fx-fill: #10B981;");
-
-        Text statusSubtext = new Text("Facility Status");
-        statusSubtext.getStyleClass().add("text-caption");
-        statusSubtext.setStyle("-fx-fill: #059669;");
-
-        statusBox.getChildren().addAll(statusIcon, statusText, statusSubtext);
+        statusBox.getChildren().addAll(statusIcon, statusText);
 
         card.getChildren().addAll(occupancyInfo, statusBox);
         return card;
@@ -143,9 +140,7 @@ public class CheckInController extends ScrollPane {
         Text sectionTitle = new Text("Member Search");
         sectionTitle.getStyleClass().add("text-h4");
 
-        // Large search input
         VBox searchBox = new VBox(12);
-        
         HBox searchInputBox = new HBox(16);
         searchInputBox.setAlignment(Pos.CENTER);
 
@@ -159,8 +154,7 @@ public class CheckInController extends ScrollPane {
         searchField.setStyle("-fx-font-size: 18px;");
         HBox.setHgrow(searchField, Priority.ALWAYS);
 
-        // Auto-search with debounce
-        PauseTransition pause = new PauseTransition(Duration.millis(500));
+        PauseTransition pause = new PauseTransition(Duration.millis(300));
         searchField.textProperty().addListener((obs, oldVal, newVal) -> {
             pause.setOnFinished(e -> searchMembers(newVal));
             pause.playFromStart();
@@ -175,60 +169,52 @@ public class CheckInController extends ScrollPane {
         });
 
         searchInputBox.getChildren().addAll(searchIcon, searchField, clearButton);
-
-        Text searchHint = new Text("💡 Tip: Start typing to search. Results appear instantly.");
+        Text searchHint = new Text("💡 Tip: Start typing to search real members.");
         searchHint.getStyleClass().add("text-caption");
         searchHint.setStyle("-fx-fill: #64748B;");
 
-        // Search results area
         searchResultsBox = new VBox(8);
         searchResultsBox.setStyle("-fx-padding: 12 0 0 0;");
 
         searchBox.getChildren().addAll(searchInputBox, searchHint, searchResultsBox);
-
         section.getChildren().addAll(sectionTitle, searchBox);
         return section;
     }
 
+    // --- CORE LOGIC ---
+
     private void searchMembers(String query) {
         searchResultsBox.getChildren().clear();
 
-        if (query == null || query.trim().isEmpty()) {
-            return;
-        }
+        if (query == null || query.trim().isEmpty()) return;
+        String lowerQuery = query.toLowerCase().trim();
 
-        query = query.toLowerCase().trim();
-
-        // Mock search results
-        ObservableList<MemberSearchResult> results = FXCollections.observableArrayList();
+        List<Member> allMembers = memberService.getAllMembers();
         
-        if (query.contains("john") || query.contains("m001")) {
-            results.add(new MemberSearchResult("M001", "John Smith", "Premium", "Active", true));
-        }
-        if (query.contains("sarah") || query.contains("m002")) {
-            results.add(new MemberSearchResult("M002", "Sarah Johnson", "Basic", "Active", false));
-        }
-        if (query.contains("emily") || query.contains("m004")) {
-            results.add(new MemberSearchResult("M004", "Emily Davis", "Student", "Expired", false));
-        }
-        if (query.contains("david") || query.contains("m005")) {
-            results.add(new MemberSearchResult("M005", "David Wilson", "Premium", "Active", true));
-        }
-        if (query.contains("robert") || query.contains("m007")) {
-            results.add(new MemberSearchResult("M007", "Robert Taylor", "Premium", "Suspended", false));
-        }
+        List<Member> results = allMembers.stream()
+            .filter(m -> m.getFullName().toLowerCase().contains(lowerQuery) || 
+                         m.getMemberId().toLowerCase().contains(lowerQuery) ||
+                         m.getEmail().toLowerCase().contains(lowerQuery))
+            .limit(5)
+            .toList();
 
         if (results.isEmpty()) {
             Text noResults = new Text("No members found matching \"" + query + "\"");
             noResults.getStyleClass().add("text-muted");
             searchResultsBox.getChildren().add(noResults);
         } else {
-            Text resultsHeader = new Text(results.size() + " member(s) found:");
-            resultsHeader.getStyleClass().add("text-body");
-            resultsHeader.setStyle("-fx-font-weight: 600;");
-            searchResultsBox.getChildren().add(resultsHeader);
+            for (Member m : results) {
+                // Ask backend for REAL status
+                boolean isCheckedIn = memberService.isMemberCheckedIn(m.getMemberId());
+                System.out.println("DEBUG UI: Member " + m.getFullName() + " Checked In? " + isCheckedIn);
 
-            for (MemberSearchResult result : results) {
+                MemberSearchResult result = new MemberSearchResult(
+                    m.getMemberId(), 
+                    m.getFullName(), 
+                    m.getPlanType(), 
+                    m.getStatus(), 
+                    isCheckedIn 
+                );
                 searchResultsBox.getChildren().add(createMemberResultCard(result));
             }
         }
@@ -239,9 +225,8 @@ public class CheckInController extends ScrollPane {
         card.getStyleClass().add("member-result-card");
         card.setPadding(new Insets(16));
         card.setAlignment(Pos.CENTER_LEFT);
-        card.setStyle("-fx-background-color: #F8FAFC; -fx-background-radius: 8px; -fx-border-color: #E2E8F0; -fx-border-radius: 8px; -fx-border-width: 1px;");
+        card.setStyle("-fx-background-color: #F8FAFC; -fx-border-color: #E2E8F0; -fx-border-radius: 8px;");
 
-        // Member photo/avatar
         VBox avatar = new VBox();
         avatar.setPrefSize(60, 60);
         avatar.setAlignment(Pos.CENTER);
@@ -250,40 +235,28 @@ public class CheckInController extends ScrollPane {
         initials.setStyle("-fx-font-size: 20px; -fx-font-weight: 700; -fx-fill: #2563EB;");
         avatar.getChildren().add(initials);
 
-        // Member info
         VBox infoBox = new VBox(6);
         HBox.setHgrow(infoBox, Priority.ALWAYS);
-
+        
         HBox nameRow = new HBox(8);
         nameRow.setAlignment(Pos.CENTER_LEFT);
         Text name = new Text(member.getName());
         name.getStyleClass().add("text-h5");
-
+        
         Label statusBadge = new Label(member.getStatus());
         statusBadge.getStyleClass().addAll("badge", "badge-" + member.getStatus().toLowerCase());
-
         nameRow.getChildren().addAll(name, statusBadge);
 
-        HBox detailsRow = new HBox(16);
-        Text memberId = new Text("ID: " + member.getMemberId());
-        memberId.getStyleClass().add("text-caption");
+        Text details = new Text("ID: " + member.getMemberId() + " • Plan: " + member.getPlanType());
+        details.getStyleClass().add("text-caption");
         
-        Text plan = new Text("Plan: " + member.getPlanType());
-        plan.getStyleClass().add("text-caption");
+        infoBox.getChildren().addAll(nameRow, details);
 
-        Text checkInStatus = new Text(member.isCheckedIn() ? "✓ Currently Checked In" : "• Not Checked In");
-        checkInStatus.getStyleClass().add("text-caption");
-        checkInStatus.setStyle("-fx-fill: " + (member.isCheckedIn() ? "#10B981" : "#64748B") + ";");
-
-        detailsRow.getChildren().addAll(memberId, plan, checkInStatus);
-
-        infoBox.getChildren().addAll(nameRow, detailsRow);
-
-        // Action buttons
         HBox actionBox = new HBox(8);
         actionBox.setAlignment(Pos.CENTER_RIGHT);
 
-        if (member.getStatus().equals("Active")) {
+        // FIX: Case-insensitive check for "Active"
+        if ("Active".equalsIgnoreCase(member.getStatus())) {
             if (member.isCheckedIn()) {
                 Button checkOutBtn = new Button("Check Out");
                 checkOutBtn.getStyleClass().addAll("btn", "btn-warning");
@@ -299,7 +272,6 @@ public class CheckInController extends ScrollPane {
             }
         } else {
             Text inactiveText = new Text("Cannot check in");
-            inactiveText.getStyleClass().add("text-caption");
             inactiveText.setStyle("-fx-fill: #EF4444;");
             actionBox.getChildren().add(inactiveText);
         }
@@ -309,106 +281,95 @@ public class CheckInController extends ScrollPane {
     }
 
     private void handleCheckIn(MemberSearchResult member) {
-        currentOccupancy++;
-        occupancyBar.setProgress((double) currentOccupancy / maxCapacity);
+        try {
+            Attendance visit = memberService.checkInMember(member.getMemberId());
+            
+            // 1. Update Occupancy UI
+            currentOccupancy++;
+            updateOccupancyUI();
 
-        // Add to recent activity
-        CheckInRecord record = new CheckInRecord(
-            member.getMemberId(),
-            member.getName(),
-            "Check In",
-            LocalDateTime.now().format(DateTimeFormatter.ofPattern("MMM dd, yyyy HH:mm"))
-        );
-        recentActivity.add(0, record);
-        if (recentActivity.size() > 10) {
-            recentActivity.remove(10);
+            // 2. Add to Activity Log
+            CheckInRecord record = new CheckInRecord(
+                visit.getMemberId(), visit.getMemberName(), "Check In", 
+                LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm"))
+            );
+            recentActivity.add(0, record);
+            refreshRecentActivity();
+
+            // 3. Force Refresh of List
+            refreshSearchResults();
+
+        } catch (Exception e) {
+            showAlert("Check-In Failed", e.getMessage());
         }
-
-        member.setCheckedIn(true);
-        refreshRecentActivity();
-
-        // Show success notification
-        showNotification("✓ " + member.getName() + " checked in successfully", "success");
-
-        // Re-search to update UI
-        searchMembers(searchField.getText());
     }
 
     private void handleCheckOut(MemberSearchResult member) {
-        currentOccupancy--;
-        occupancyBar.setProgress((double) currentOccupancy / maxCapacity);
+        try {
+            memberService.checkOutMember(member.getMemberId());
+            
+            // 1. Update Occupancy UI
+            currentOccupancy--;
+            if (currentOccupancy < 0) currentOccupancy = 0;
+            updateOccupancyUI();
 
-        // Add to recent activity
-        CheckInRecord record = new CheckInRecord(
-            member.getMemberId(),
-            member.getName(),
-            "Check Out",
-            LocalDateTime.now().format(DateTimeFormatter.ofPattern("MMM dd, yyyy HH:mm"))
-        );
-        recentActivity.add(0, record);
-        if (recentActivity.size() > 10) {
-            recentActivity.remove(10);
+            // 2. Add to Activity Log
+            CheckInRecord record = new CheckInRecord(
+                member.getMemberId(), member.getName(), "Check Out",
+                LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm"))
+            );
+            recentActivity.add(0, record);
+            refreshRecentActivity();
+
+            // 3. Force Refresh of List
+            refreshSearchResults();
+
+        } catch (Exception e) {
+            showAlert("Check-Out Failed", e.getMessage());
         }
-
-        member.setCheckedIn(false);
-        refreshRecentActivity();
-
-        // Show success notification
-        showNotification("✓ " + member.getName() + " checked out successfully", "success");
-
-        // Re-search to update UI
-        searchMembers(searchField.getText());
     }
 
-    private void showNotification(String message, String type) {
-        // Simple console notification for now
-        System.out.println(message);
-        // TODO: Implement toast notification UI component
+    private void updateOccupancyUI() {
+        // FIX: Update the text displayed on screen
+        currentCountText.setText(String.valueOf(currentOccupancy));
+        occupancyBar.setProgress((double) currentOccupancy / maxCapacity);
     }
 
+    private void refreshSearchResults() {
+        // Use the actual text currently in the box to re-run search
+        String currentText = searchField.getText();
+        if (!currentText.isEmpty()) {
+            searchMembers(currentText);
+        }
+    }
+
+    private void showAlert(String title, String content) {
+        Alert alert = new Alert(Alert.AlertType.ERROR);
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.setContentText(content);
+        alert.showAndWait();
+    }
+
+    // ... (createRecentActivitySection, refreshRecentActivity, createActivityItem, getInitials remain same) ...
     private VBox createRecentActivitySection() {
         VBox section = new VBox(16);
         section.getStyleClass().add("card");
         section.setPadding(new Insets(24));
-
-        HBox header = new HBox(16);
-        header.setAlignment(Pos.CENTER_LEFT);
-
         Text title = new Text("Recent Activity");
         title.getStyleClass().add("text-h4");
-
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-
-        Text liveIndicator = new Text("🔴 Live");
-        liveIndicator.getStyleClass().add("text-caption");
-        liveIndicator.setStyle("-fx-fill: #EF4444; -fx-font-weight: 600;");
-
-        header.getChildren().addAll(title, spacer, liveIndicator);
-
-        // Activity list
         recentActivityBox = new VBox(8);
         ScrollPane scrollPane = new ScrollPane(recentActivityBox);
         scrollPane.setFitToWidth(true);
         scrollPane.setPrefHeight(300);
         scrollPane.setStyle("-fx-background-color: transparent;");
-
         refreshRecentActivity();
-
-        section.getChildren().addAll(header, new Separator(), scrollPane);
+        section.getChildren().addAll(title, new Separator(), scrollPane);
         return section;
     }
 
     private void refreshRecentActivity() {
         recentActivityBox.getChildren().clear();
-
-        if (recentActivity.isEmpty()) {
-            Text emptyText = new Text("No recent activity");
-            emptyText.getStyleClass().add("text-muted");
-            recentActivityBox.getChildren().add(emptyText);
-            return;
-        }
-
         for (CheckInRecord record : recentActivity) {
             recentActivityBox.getChildren().add(createActivityItem(record));
         }
@@ -419,91 +380,37 @@ public class CheckInController extends ScrollPane {
         item.setPadding(new Insets(12));
         item.setAlignment(Pos.CENTER_LEFT);
         item.setStyle("-fx-background-color: #F8FAFC; -fx-background-radius: 6px;");
-
-        // Action icon
-        Label icon = new Label(record.getAction().equals("Check In") ? "→" : "←");
-        icon.setStyle("-fx-font-size: 20px; -fx-text-fill: " + 
-            (record.getAction().equals("Check In") ? "#10B981" : "#F59E0B") + ";");
-
-        // Member info
-        VBox infoBox = new VBox(4);
-        HBox.setHgrow(infoBox, Priority.ALWAYS);
-
         Text memberName = new Text(record.getMemberName());
-        memberName.getStyleClass().add("text-body");
         memberName.setStyle("-fx-font-weight: 600;");
-
-        Text details = new Text(record.getMemberId() + " • " + record.getAction());
-        details.getStyleClass().add("text-caption");
-
-        infoBox.getChildren().addAll(memberName, details);
-
-        // Timestamp
-        Text timestamp = new Text(record.getTimestamp());
-        timestamp.getStyleClass().add("text-caption");
-        timestamp.setStyle("-fx-fill: #64748B;");
-
-        item.getChildren().addAll(icon, infoBox, timestamp);
+        Text details = new Text(record.getAction() + " • " + record.getTimestamp());
+        item.getChildren().addAll(memberName, details);
         return item;
     }
 
     private String getInitials(String name) {
+        if (name == null) return "??";
         String[] parts = name.split(" ");
-        if (parts.length >= 2) {
-            return parts[0].substring(0, 1) + parts[1].substring(0, 1);
-        }
-        return name.substring(0, Math.min(2, name.length()));
+        return (parts.length >= 2) ? parts[0].substring(0,1)+parts[1].substring(0,1) : name.substring(0,Math.min(2,name.length()));
     }
 
-    private void loadMockRecentActivity() {
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MMM dd, yyyy HH:mm");
-        recentActivity.addAll(
-            new CheckInRecord("M005", "David Wilson", "Check In", LocalDateTime.now().minusMinutes(5).format(formatter)),
-            new CheckInRecord("M003", "Michael Brown", "Check Out", LocalDateTime.now().minusMinutes(12).format(formatter)),
-            new CheckInRecord("M008", "Amanda Anderson", "Check In", LocalDateTime.now().minusMinutes(23).format(formatter)),
-            new CheckInRecord("M002", "Sarah Johnson", "Check In", LocalDateTime.now().minusMinutes(35).format(formatter)),
-            new CheckInRecord("M010", "Jennifer White", "Check Out", LocalDateTime.now().minusMinutes(47).format(formatter))
-        );
-    }
-
-    // Member search result class
     public static class MemberSearchResult {
-        private final String memberId;
-        private final String name;
-        private final String planType;
-        private final String status;
-        private boolean checkedIn;
-
-        public MemberSearchResult(String memberId, String name, String planType, String status, boolean checkedIn) {
-            this.memberId = memberId;
-            this.name = name;
-            this.planType = planType;
-            this.status = status;
-            this.checkedIn = checkedIn;
+        private final String memberId, name, planType, status;
+        private final boolean checkedIn;
+        public MemberSearchResult(String id, String n, String p, String s, boolean c) {
+            this.memberId=id; this.name=n; this.planType=p; this.status=s; this.checkedIn=c;
         }
-
         public String getMemberId() { return memberId; }
         public String getName() { return name; }
         public String getPlanType() { return planType; }
         public String getStatus() { return status; }
         public boolean isCheckedIn() { return checkedIn; }
-        public void setCheckedIn(boolean checkedIn) { this.checkedIn = checkedIn; }
     }
 
-    // Check-in record class
     public static class CheckInRecord {
-        private final String memberId;
-        private final String memberName;
-        private final String action;
-        private final String timestamp;
-
-        public CheckInRecord(String memberId, String memberName, String action, String timestamp) {
-            this.memberId = memberId;
-            this.memberName = memberName;
-            this.action = action;
-            this.timestamp = timestamp;
+        private final String memberId, memberName, action, timestamp;
+        public CheckInRecord(String id, String n, String a, String t) {
+            this.memberId=id; this.memberName=n; this.action=a; this.timestamp=t;
         }
-
         public String getMemberId() { return memberId; }
         public String getMemberName() { return memberName; }
         public String getAction() { return action; }

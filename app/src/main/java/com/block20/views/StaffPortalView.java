@@ -126,8 +126,9 @@ public class StaffPortalView {
     /**
      * Show check-in/check-out view
      */
-    private void showCheckIn() {
-        CheckInController checkInController = new CheckInController();
+private void showCheckIn() {
+        // PASS THE SERVICE
+        CheckInController checkInController = new CheckInController(this.memberService);
         setContent(checkInController);
     }
     
@@ -143,8 +144,9 @@ private void showMembersRegistry() {
     /**
      * Show new enrollment view
      */
-    private void showEnrollmentNew() {
-        EnrollmentController enrollmentController = new EnrollmentController(this::handleNavigation);
+private void showEnrollmentNew() {
+        // PASS 'this.memberService' into the constructor
+        EnrollmentController enrollmentController = new EnrollmentController(this::handleNavigation, this.memberService);
         setContent(enrollmentController);
     }
     

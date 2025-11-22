@@ -26,12 +26,16 @@ public class EnrollmentController extends ScrollPane {
     private EnrollmentData enrollmentData;
     private Consumer<String> navigationHandler;
     
-    public EnrollmentController(Consumer<String> navigationHandler) {
+// NEW: Service Dependency
+    private com.block20.services.MemberService memberService;
+    
+    // UPDATED: Constructor accepts MemberService
+    public EnrollmentController(Consumer<String> navigationHandler, com.block20.services.MemberService memberService) {
         this.navigationHandler = navigationHandler;
+        this.memberService = memberService; // Save it
         this.enrollmentData = new EnrollmentData();
         initialize();
     }
-
     private void initialize() {
         // Configure ScrollPane
         setFitToWidth(true);
@@ -777,9 +781,7 @@ public class EnrollmentController extends ScrollPane {
         memberCard.getStyleClass().add("card");
         memberCard.setPadding(new Insets(32));
         memberCard.setStyle("-fx-background-color: linear-gradient(from 0% 0% to 100% 100%, #667EEA, #764BA2);");
-        
-        // Generate member ID
-        enrollmentData.memberId = "M" + String.format("%04d", (int)(Math.random() * 10000));
+
         
         Text memberIdLabel = new Text("Member ID");
         memberIdLabel.setStyle("-fx-fill: white; -fx-font-size: 12px;");
@@ -833,8 +835,6 @@ public class EnrollmentController extends ScrollPane {
         Button doneButton = new Button("✓ Done");
         doneButton.getStyleClass().addAll("btn", "btn-success");
         doneButton.setOnAction(e -> {
-            // Save enrollment data locally
-            saveEnrollment();
             // Navigate to member registry
             navigationHandler.accept("members-registry");
         });
@@ -872,13 +872,22 @@ public class EnrollmentController extends ScrollPane {
         return item;
     }
 
-    private void nextStep() {
+private void nextStep() {
         if (validateCurrentStep()) {
             if (currentStep < totalSteps) {
-                showStep(currentStep + 1);
+                // IF WE ARE ABOUT TO ENTER STEP 5 (CONFIRMATION), SAVE TO DB
+                if (currentStep == 4) {
+                    try {
+                        saveEnrollmentToBackend(); // <--- Call our new method
+                        showStep(5); // Show success screen only if save works
+                    } catch (Exception e) {
+                        showAlert("Error saving member: " + e.getMessage());
+                    }
+                } else {
+                    showStep(currentStep + 1);
+                }
             } else {
-                // Complete enrollment
-                saveEnrollment();
+                // "Done" button clicked
                 navigationHandler.accept("members-registry");
             }
         }
@@ -952,21 +961,19 @@ public class EnrollmentController extends ScrollPane {
         enrollmentData.transactionId = "TXN" + System.currentTimeMillis();
     }
 
-    private void saveEnrollment() {
-        System.out.println("=== Enrollment Completed ===");
-        System.out.println("Member ID: " + enrollmentData.memberId);
-        System.out.println("Name: " + enrollmentData.fullName);
-        System.out.println("Email: " + enrollmentData.email);
-        System.out.println("Phone: " + enrollmentData.phone);
-        System.out.println("Plan: " + enrollmentData.selectedPlan);
-        System.out.println("Amount Paid: $" + String.format("%.2f", enrollmentData.totalAmount));
-        System.out.println("Payment Method: " + enrollmentData.paymentMethod);
-        System.out.println("Transaction ID: " + enrollmentData.transactionId);
-        System.out.println("Start Date: " + enrollmentData.startDate);
-        System.out.println("Expiry Date: " + enrollmentData.expiryDate);
-        System.out.println("========================");
+private void saveEnrollmentToBackend() {
+        // 1. Call the Service (The Brain)
+        var newMember = memberService.registerMember(
+            enrollmentData.fullName,
+            enrollmentData.email,
+            enrollmentData.phone,
+            enrollmentData.selectedPlan
+        );
+
+        // 2. Update our data object with the REAL ID from the database
+        enrollmentData.memberId = newMember.getMemberId();
         
-        // TODO: Save to database/file system
+        System.out.println("Backend Success! Created Member: " + newMember.getMemberId());
     }
 
     private void handleCancel() {
