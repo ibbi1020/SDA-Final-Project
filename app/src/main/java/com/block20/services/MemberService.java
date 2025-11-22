@@ -2,6 +2,7 @@ package com.block20.services;
 
 import com.block20.models.Member;
 import com.block20.models.Attendance;
+import com.block20.models.Transaction;
 import java.util.List;
 
 public interface MemberService {
@@ -14,4 +15,5 @@ public interface MemberService {
     boolean isMemberCheckedIn(String memberId);
     int getCurrentOccupancyCount();
     void renewMembership(String memberId, String newPlanType);
+    List<Transaction> getAllTransactions();
 }

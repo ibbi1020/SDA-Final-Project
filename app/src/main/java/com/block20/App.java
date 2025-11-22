@@ -17,6 +17,8 @@ import javafx.scene.Scene;
 import javafx.stage.Stage;
 import com.block20.repositories.AttendanceRepository;
 import com.block20.repositories.impl.AttendanceRepositoryImpl;
+import com.block20.repositories.TransactionRepository;
+import com.block20.repositories.impl.TransactionRepositoryImpl;
 
 public class App extends Application {
     
@@ -35,10 +37,10 @@ public class App extends Application {
     // 1. Create Repositories (The "Databases")
         MemberRepository memberRepo = new MemberRepositoryImpl();
         AttendanceRepository attendanceRepo = new AttendanceRepositoryImpl(); // <--- NEW!
+        TransactionRepository transactionRepo = new TransactionRepositoryImpl(); // <--- NEW
         
-        // 2. Create Service (The "Brain")
-        // Now we pass BOTH repositories to the service
-        this.memberService = new MemberServiceImpl(memberRepo, attendanceRepo); 
+        // 2. Create Service (Pass all 3)
+        this.memberService = new MemberServiceImpl(memberRepo, attendanceRepo, transactionRepo);
 
         // 3. Add Mock Data
         try {

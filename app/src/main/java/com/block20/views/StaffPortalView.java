@@ -194,9 +194,10 @@ private void showRenewals() {
     /**
      * Show financial reports view
      */
-    private void showReportsFinancial() {
-        FinancialReportsController financialReportsController = new FinancialReportsController(this::handleNavigation);
-        setContent(financialReportsController);
+private void showReportsFinancial() {
+        // PASS THE SERVICE
+        FinancialReportsController financialReportsController = new FinancialReportsController(this::handleNavigation, this.memberService);
+        setContent(financialReportsController); // Add .getView() if your controller requires it
     }
     
     /**
