@@ -19,12 +19,17 @@ import com.block20.repositories.AttendanceRepository;
 import com.block20.repositories.impl.AttendanceRepositoryImpl;
 import com.block20.repositories.TransactionRepository;
 import com.block20.repositories.impl.TransactionRepositoryImpl;
+import com.block20.repositories.EquipmentRepository;
+import com.block20.repositories.impl.EquipmentRepositoryImpl;
+import com.block20.services.EquipmentService;
+import com.block20.services.impl.EquipmentServiceImpl;
 
 public class App extends Application {
     
     private Stage primaryStage;
     private Scene scene;
     private MemberService memberService; 
+    private EquipmentService equipmentService;
     
     @Override
     public void start(Stage primaryStage) {
@@ -38,10 +43,10 @@ public class App extends Application {
         MemberRepository memberRepo = new MemberRepositoryImpl();
         AttendanceRepository attendanceRepo = new AttendanceRepositoryImpl(); // <--- NEW!
         TransactionRepository transactionRepo = new TransactionRepositoryImpl(); // <--- NEW
-        
+        EquipmentRepository equipmentRepo = new EquipmentRepositoryImpl();
         // 2. Create Service (Pass all 3)
         this.memberService = new MemberServiceImpl(memberRepo, attendanceRepo, transactionRepo);
-
+        this.equipmentService = new EquipmentServiceImpl(equipmentRepo); // <--- NEW
         // 3. Add Mock Data
         try {
             memberService.registerMember("John Doe", "john@example.com", "555-0101", "Premium");
@@ -54,6 +59,15 @@ public class App extends Application {
                 memberService.checkInMember(john.getMemberId());
             }
             
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        try {
+            equipmentService.addEquipment("Treadmill T-1000", "Cardio", "Functional");
+            equipmentService.addEquipment("Dumbbell Set (5-50lbs)", "Strength", "Functional");
+            equipmentService.addEquipment("Elliptical E-500", "Cardio", "Maintenance");
+            System.out.println("Equipment System Started: Dummy inventory added.");
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -95,13 +109,22 @@ public class App extends Application {
         primaryStage.setScene(scene);
     }
     
-    private void showStaffPortal(String staffId) {
+private void showStaffPortal(String staffId) {
         String staffName = "Staff " + staffId;
         String staffRole = "STAFF";
-        StaffPortalView staffPortal = new StaffPortalView(staffName, staffRole, memberService);
+        
+        // PASS BOTH SERVICES HERE
+        StaffPortalView staffPortal = new StaffPortalView(
+            staffName, 
+            staffRole, 
+            this.memberService, 
+            this.equipmentService // <--- NEW ARGUMENT
+        );
+        
         scene = new Scene(staffPortal.getView(), 1400, 900);
         String css = getClass().getResource("/com/block20/styles/main.css").toExternalForm();
         scene.getStylesheets().add(css);
+        
         primaryStage.setScene(scene);
     }
     

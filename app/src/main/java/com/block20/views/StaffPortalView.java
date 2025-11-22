@@ -18,6 +18,7 @@ import com.block20.controllers.equipment.EquipmentInventoryController;
 import com.block20.controllers.equipment.MaintenanceScheduleController;
 import com.block20.controllers.FinancialReportsController;
 import com.block20.controllers.OperationalReportsController;
+import com.block20.services.EquipmentService;
 import javafx.scene.control.Label;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.Priority;
@@ -38,11 +39,13 @@ public class StaffPortalView {
     private final String staffRole;
     
     private final MemberService memberService; 
+    private final EquipmentService equipmentService;
     
-    public StaffPortalView(String staffName, String staffRole, MemberService memberService) {
+    public StaffPortalView(String staffName, String staffRole, MemberService memberService, EquipmentService equipmentService) {
         this.staffName = staffName;
         this.staffRole = staffRole;
         this.memberService = memberService;
+        this.equipmentService = equipmentService;
         initializeView();
     }
     
@@ -178,9 +181,10 @@ private void showRenewals() {
     /**
      * Show equipment inventory view (includes add equipment)
      */
-    private void showEquipmentInventory() {
-        EquipmentInventoryController equipmentInventoryController = new EquipmentInventoryController(this::handleNavigation);
-        setContent(equipmentInventoryController);
+private void showEquipmentInventory() {
+        // Pass the service to the controller
+        EquipmentInventoryController controller = new EquipmentInventoryController(this::handleNavigation, this.equipmentService);
+        setContent(controller);
     }
     
     /**
