@@ -9,6 +9,7 @@ import com.block20.repositories.MemberRepository;
 import com.block20.repositories.TransactionRepository; // <--- NEW
 import com.block20.services.MemberService;
 import com.block20.services.AuditService; // <--- NEW
+import com.block20.services.NotificationService; 
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
@@ -19,15 +20,18 @@ public class MemberServiceImpl implements MemberService {
     private AttendanceRepository attendanceRepo;
     private TransactionRepository transactionRepo; // <--- NEW
     private AuditService auditService; // <--- NEW
+    private NotificationService notificationService; // <--- NEW
 
     public MemberServiceImpl(MemberRepository memberRepo, 
                              AttendanceRepository attendanceRepo,
                              TransactionRepository transactionRepo,
-                             AuditService auditService) { // <--- Add to constructor
+                             AuditService auditService,
+                             NotificationService notificationService) { // <--- Add to Constructor
         this.memberRepo = memberRepo;
         this.attendanceRepo = attendanceRepo;
         this.transactionRepo = transactionRepo;
         this.auditService = auditService;
+        this.notificationService = notificationService;
     }
     @Override
     public Member registerMember(String fullName, String email, String phone, String planType) {
@@ -43,6 +47,8 @@ public class MemberServiceImpl implements MemberService {
         Member newMember = new Member(newId, fullName, email, phone, planType);
         memberRepo.save(newMember);
         
+        notificationService.sendWelcomePacket(email, fullName, newId);
+
         // Record Transaction
         double fee = getPlanPrice(planType);
         String txnId = "TXN" + System.currentTimeMillis();
@@ -76,7 +82,7 @@ public class MemberServiceImpl implements MemberService {
         Transaction txn = new Transaction(txnId, memberId, "Renewal", fee);
         transactionRepo.save(txn);
         // ---------------------------
-        
+        notificationService.sendRenewalReceipt(member.getEmail(), member.getFullName(), fee);
         System.out.println("Renewed: " + member.getFullName());
     }
 
@@ -174,6 +180,9 @@ public class MemberServiceImpl implements MemberService {
         m.setStatus(newStatus);
         memberRepo.save(m);
         auditService.logAction(id, "STATUS_CHANGE", "Status changed" );
+        if ("Suspended".equalsIgnoreCase(newStatus)) {
+            notificationService.sendSecurityAlert(m.getPhone(), m.getFullName(), "Suspended");
+        }
     }
 
     @Override

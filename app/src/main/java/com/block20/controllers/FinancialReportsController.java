@@ -3,6 +3,7 @@ package com.block20.controllers;
 import com.block20.models.Member;
 import com.block20.models.Transaction;
 import com.block20.services.MemberService;
+import com.block20.services.ExportService;
 
 import javafx.geometry.*;
 import javafx.scene.control.*;
@@ -15,10 +16,6 @@ import java.util.*;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-/**
- * Controller for Financial Reports functionality
- * Now connected to Real Backend Data via MemberService
- */
 public class FinancialReportsController extends ScrollPane {
     
     // Data structures
@@ -27,6 +24,9 @@ public class FinancialReportsController extends ScrollPane {
     private LocalDate toDate = LocalDate.now();
     private String groupBy = "Daily";
     
+    // THIS WAS THE MISSING FIELD causing Export issues
+    private ObservableList<RevenueBreakdown> revenueData;
+
     // UI Components
     private VBox reportDisplayArea;
     private VBox contentContainer;
@@ -36,23 +36,23 @@ public class FinancialReportsController extends ScrollPane {
     
     // Dependencies
     private Consumer<String> navigationHandler;
-    private MemberService memberService; // <--- NEW: Backend Connection
-    
-    // UPDATED: Constructor accepts MemberService
-    public FinancialReportsController(Consumer<String> navigationHandler, MemberService memberService) {
+    private MemberService memberService; 
+    private ExportService exportService;
+
+    public FinancialReportsController(Consumer<String> navigationHandler, MemberService memberService, ExportService exportService) {
         this.navigationHandler = navigationHandler;
         this.memberService = memberService;
+        this.exportService = exportService;
         
         initializeUI();
-        // generateMockData(); // Removed: We use real data now
-        updateReportDisplay();
+        // Auto-generate on load so screen isn't empty
+        generateReport(); 
     }
     
     private void initializeUI() {
         this.setFitToWidth(true);
         this.setFitToHeight(false);
         this.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
-        this.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         this.getStyleClass().add("content-scroll-pane");
         
         contentContainer = new VBox(20);
@@ -69,104 +69,8 @@ public class FinancialReportsController extends ScrollPane {
         this.setContent(contentContainer);
     }
     
-    private VBox createHeader() {
-        VBox header = new VBox(10);
-        header.getStyleClass().add("section-header");
-        Label title = new Label("Financial Reports");
-        title.getStyleClass().add("page-title");
-        Label subtitle = new Label("Generate and export comprehensive financial reports for analysis");
-        subtitle.getStyleClass().add("page-subtitle");
-        header.getChildren().addAll(title, subtitle);
-        return header;
-    }
-    
-    private VBox createReportTypeSection() {
-        VBox section = new VBox(10);
-        section.getStyleClass().add("report-type-section");
-        section.setPadding(new Insets(20));
-        
-        Label sectionTitle = new Label("📊 FINANCIAL REPORTS");
-        sectionTitle.getStyleClass().add("section-title");
-        
-        HBox reportButtons = new HBox(15);
-        reportButtons.setAlignment(Pos.CENTER_LEFT);
-        
-        Button revenueBtn = new Button("Revenue Report");
-        revenueBtn.getStyleClass().addAll("report-type-button", "selected");
-        revenueBtn.setOnAction(e -> selectReportType("Revenue Report", revenueBtn, reportButtons));
-        
-        Button collectionsBtn = new Button("Collections Report");
-        collectionsBtn.getStyleClass().add("report-type-button");
-        collectionsBtn.setOnAction(e -> selectReportType("Collections Report", collectionsBtn, reportButtons));
-        
-        Button memberGrowthBtn = new Button("Member Growth");
-        memberGrowthBtn.getStyleClass().add("report-type-button");
-        memberGrowthBtn.setOnAction(e -> selectReportType("Member Growth", memberGrowthBtn, reportButtons));
-        
-        reportButtons.getChildren().addAll(revenueBtn, collectionsBtn, memberGrowthBtn);
-        section.getChildren().addAll(sectionTitle, reportButtons);
-        return section;
-    }
-    
-    private VBox createParametersSection() {
-        VBox section = new VBox(15);
-        section.getStyleClass().add("parameters-section");
-        section.setPadding(new Insets(20));
-        
-        Label sectionTitle = new Label("Report Parameters");
-        sectionTitle.getStyleClass().add("section-subtitle");
-        
-        HBox dateRangeBox = new HBox(15);
-        dateRangeBox.setAlignment(Pos.CENTER_LEFT);
-        
-        VBox fromBox = new VBox(5);
-        fromDatePicker = new DatePicker(fromDate);
-        fromBox.getChildren().addAll(new Label("From Date:"), fromDatePicker);
-        
-        VBox toBox = new VBox(5);
-        toDatePicker = new DatePicker(toDate);
-        toBox.getChildren().addAll(new Label("To Date:"), toDatePicker);
-        
-        dateRangeBox.getChildren().addAll(fromBox, toBox);
-        
-        HBox groupByBox = new HBox(15);
-        VBox groupByVBox = new VBox(5);
-        groupByCombo = new ComboBox<>();
-        groupByCombo.getItems().addAll("Daily", "Weekly", "Monthly", "Yearly");
-        groupByCombo.setValue(groupBy);
-        groupByCombo.setPrefWidth(200);
-        groupByVBox.getChildren().addAll(new Label("Group By:"), groupByCombo);
-        groupByBox.getChildren().add(groupByVBox);
-        
-        HBox actionButtons = new HBox(10);
-        Button generateBtn = new Button("Generate Report");
-        generateBtn.getStyleClass().add("primary-button");
-        generateBtn.setOnAction(e -> generateReport());
-        
-        actionButtons.getChildren().add(generateBtn);
-        
-        section.getChildren().addAll(sectionTitle, dateRangeBox, groupByBox, actionButtons);
-        return section;
-    }
-    
-    private VBox createReportDisplayArea() {
-        VBox displayArea = new VBox(20);
-        displayArea.getStyleClass().add("report-display-area");
-        displayArea.setPadding(new Insets(20));
-        displayArea.setMinHeight(400);
-        displayArea.getChildren().add(new Label("Select parameters and click Generate to view results."));
-        return displayArea;
-    }
-    
-    private void selectReportType(String reportType, Button selectedBtn, HBox buttonContainer) {
-        currentReportType = reportType;
-        buttonContainer.getChildren().forEach(node -> {
-            if (node instanceof Button) node.getStyleClass().remove("selected");
-        });
-        selectedBtn.getStyleClass().add("selected");
-    }
-    
     private void generateReport() {
+        System.out.println("DEBUG: Generate Report Triggered");
         fromDate = fromDatePicker.getValue();
         toDate = toDatePicker.getValue();
         groupBy = groupByCombo.getValue();
@@ -175,7 +79,14 @@ public class FinancialReportsController extends ScrollPane {
             showAlert("Invalid Date Range", "From date must be before To date");
             return;
         }
-        updateReportDisplay();
+        
+        try {
+            updateReportDisplay();
+        } catch (Exception e) {
+            System.err.println("CRITICAL ERROR in generateReport:");
+            e.printStackTrace();
+            showAlert("Error", "Failed to generate report: " + e.getMessage());
+        }
     }
     
     private void updateReportDisplay() {
@@ -205,34 +116,33 @@ public class FinancialReportsController extends ScrollPane {
         reportDisplayArea.getChildren().addAll(reportHeader, reportContent);
     }
     
-    // --- REAL DATA LOGIC STARTS HERE ---
-
     private VBox createRevenueReport() {
+        System.out.println("DEBUG: Creating Revenue Report...");
         VBox content = new VBox(15);
         
-        // 1. Fetch Real Transactions
+        if (memberService == null) {
+            content.getChildren().add(new Label("Error: Backend Service Not Connected"));
+            return content;
+        }
+
         List<Transaction> allTxns = memberService.getAllTransactions();
-        
-        // 2. Filter by Date
+        System.out.println("DEBUG: Found " + allTxns.size() + " transactions total.");
+
         List<Transaction> filtered = allTxns.stream()
             .filter(t -> !t.getDate().isBefore(fromDate) && !t.getDate().isAfter(toDate))
             .collect(Collectors.toList());
-
-        // 3. Calculate Totals
-        double totalRevenue = filtered.stream().mapToDouble(Transaction::getAmount).sum();
         
-        double enrollmentRevenue = filtered.stream()
-            .filter(t -> t.getType().equals("Enrollment"))
-            .mapToDouble(Transaction::getAmount).sum();
-            
-        double renewalRevenue = filtered.stream()
-            .filter(t -> t.getType().equals("Renewal"))
-            .mapToDouble(Transaction::getAmount).sum();
+        System.out.println("DEBUG: " + filtered.size() + " transactions in date range.");
 
-        int enrollCount = (int) filtered.stream().filter(t -> t.getType().equals("Enrollment")).count();
-        int renewalCount = (int) filtered.stream().filter(t -> t.getType().equals("Renewal")).count();
+        // Calculations
+        double totalRevenue = filtered.stream().mapToDouble(Transaction::getAmount).sum();
+        double enrollmentRevenue = filtered.stream().filter(t -> "Enrollment".equals(t.getType())).mapToDouble(Transaction::getAmount).sum();
+        double renewalRevenue = filtered.stream().filter(t -> "Renewal".equals(t.getType())).mapToDouble(Transaction::getAmount).sum();
+        
+        long enrollCount = filtered.stream().filter(t -> "Enrollment".equals(t.getType())).count();
+        long renewalCount = filtered.stream().filter(t -> "Renewal".equals(t.getType())).count();
 
-        // 4. Display Cards
+        // Cards
         HBox summaryCards = new HBox(15);
         summaryCards.getChildren().addAll(
             createMetricCard("Total Revenue", String.format("$%.2f", totalRevenue), "revenue-card"),
@@ -240,122 +150,154 @@ public class FinancialReportsController extends ScrollPane {
             createMetricCard("Renewals", String.format("$%.2f", renewalRevenue), "positive-card")
         );
         
-        // 5. Create Table Data
-        ObservableList<RevenueBreakdown> revenueData = FXCollections.observableArrayList();
+        // Table Data
+        this.revenueData = FXCollections.observableArrayList();
         
         if (enrollCount > 0) {
             revenueData.add(new RevenueBreakdown("Enrollments", 
-                String.format("$%.2f", enrollmentRevenue), 
-                String.valueOf(enrollCount), 
-                String.format("$%.2f", enrollmentRevenue/enrollCount)));
+                String.format("$%.2f", enrollmentRevenue), String.valueOf(enrollCount), String.format("$%.2f", enrollmentRevenue/enrollCount)));
         }
         if (renewalCount > 0) {
             revenueData.add(new RevenueBreakdown("Renewals", 
-                String.format("$%.2f", renewalRevenue), 
-                String.valueOf(renewalCount), 
-                String.format("$%.2f", renewalRevenue/renewalCount)));
+                String.format("$%.2f", renewalRevenue), String.valueOf(renewalCount), String.format("$%.2f", renewalRevenue/renewalCount)));
         }
         
-        // Table Setup
+        // Table View
         TableView<RevenueBreakdown> table = new TableView<>();
-        table.setPrefHeight(250);
+        table.setPrefHeight(300); // FIX: Ensure height is visible
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
         
-        TableColumn<RevenueBreakdown, String> catCol = new TableColumn<>("Category"); catCol.setCellValueFactory(d -> d.getValue().categoryProperty()); catCol.setPrefWidth(200);
-        TableColumn<RevenueBreakdown, String> amtCol = new TableColumn<>("Amount"); amtCol.setCellValueFactory(d -> d.getValue().amountProperty()); amtCol.setPrefWidth(150);
-        TableColumn<RevenueBreakdown, String> cntCol = new TableColumn<>("Count"); cntCol.setCellValueFactory(d -> d.getValue().countProperty()); cntCol.setPrefWidth(100);
-        TableColumn<RevenueBreakdown, String> avgCol = new TableColumn<>("Avg"); avgCol.setCellValueFactory(d -> d.getValue().avgProperty()); avgCol.setPrefWidth(150);
+        TableColumn<RevenueBreakdown, String> catCol = new TableColumn<>("Category"); catCol.setCellValueFactory(d -> d.getValue().categoryProperty());
+        TableColumn<RevenueBreakdown, String> amtCol = new TableColumn<>("Amount"); amtCol.setCellValueFactory(d -> d.getValue().amountProperty());
+        TableColumn<RevenueBreakdown, String> cntCol = new TableColumn<>("Count"); cntCol.setCellValueFactory(d -> d.getValue().countProperty());
+        TableColumn<RevenueBreakdown, String> avgCol = new TableColumn<>("Avg"); avgCol.setCellValueFactory(d -> d.getValue().avgProperty());
         
         table.getColumns().addAll(catCol, amtCol, cntCol, avgCol);
         table.setItems(revenueData);
         
         if (revenueData.isEmpty()) {
-            table.setPlaceholder(new Label("No revenue data found for this period"));
+            table.setPlaceholder(new Label("No transactions found in this period."));
         }
         
         content.getChildren().addAll(summaryCards, new Separator(), table);
         return content;
     }
     
-    private VBox createMemberGrowthReport() {
-        VBox content = new VBox(15);
+    private void exportReport(String format) {
+        System.out.println("DEBUG: Export Button Clicked for " + format);
         
-        // 1. Fetch Real Members
-        List<Member> allMembers = memberService.getAllMembers();
+        if (!"CSV".equalsIgnoreCase(format)) {
+            showAlert("Not Supported", "Only CSV export is currently implemented.");
+            return;
+        }
         
-        // 2. Filter by Join Date
-        long newMembers = allMembers.stream()
-            .filter(m -> !m.getJoinDate().isBefore(fromDate) && !m.getJoinDate().isAfter(toDate))
-            .count();
-            
-        long totalActive = allMembers.stream()
-            .filter(m -> "Active".equalsIgnoreCase(m.getStatus()))
-            .count();
+        if (exportService == null) {
+            showAlert("Error", "Export Service is not connected!");
+            return;
+        }
 
-        // 3. Display Cards
-        HBox summaryCards = new HBox(15);
-        summaryCards.getChildren().addAll(
-            createMetricCard("New Members", String.valueOf(newMembers), "positive-card"),
-            createMetricCard("Total Active", String.valueOf(totalActive), "revenue-card")
-        );
-        
-        // 4. Simple Table showing new members
-        TableView<Member> table = new TableView<>();
-        table.setPrefHeight(250);
-        
-        TableColumn<Member, String> idCol = new TableColumn<>("ID"); idCol.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().getMemberId()));
-        TableColumn<Member, String> nameCol = new TableColumn<>("Name"); nameCol.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().getFullName()));
-        TableColumn<Member, String> dateCol = new TableColumn<>("Joined"); dateCol.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().getJoinDate().toString()));
-        
-        table.getColumns().addAll(idCol, nameCol, dateCol);
-        
-        List<Member> filteredMembers = allMembers.stream()
-            .filter(m -> !m.getJoinDate().isBefore(fromDate) && !m.getJoinDate().isAfter(toDate))
-            .collect(Collectors.toList());
-            
-        table.setItems(FXCollections.observableArrayList(filteredMembers));
-        
-        content.getChildren().addAll(summaryCards, new Separator(), new Label("New Members Joined:"), table);
-        return content;
+        try {
+            if (this.revenueData != null && !this.revenueData.isEmpty()) {
+                exportService.exportRevenueReport(this.revenueData);
+                
+                Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                alert.setTitle("Export Successful");
+                alert.setHeaderText(null);
+                alert.setContentText("File saved to your Desktop.");
+                alert.showAndWait();
+            } else {
+                showAlert("Empty Data", "No data to export. Generate a report with data first.");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            showAlert("Export Failed", e.getMessage());
+        }
+    }
+
+    // --- STANDARD COMPONENTS (Header, Parameters, Etc) ---
+    
+    private VBox createHeader() {
+        VBox header = new VBox(10);
+        header.getStyleClass().add("section-header");
+        header.getChildren().addAll(new Label("Financial Reports"), new Label("Generate and export financial data"));
+        return header;
     }
     
-    // Mock Collections Report (Since we don't have a 'Debt' model yet)
-    private VBox createCollectionsReport() {
-        VBox content = new VBox(15);
-        content.getChildren().add(new Label("Collections data requires 'Invoicing' feature (Coming Soon)"));
-        return content;
+    private VBox createReportTypeSection() {
+        VBox section = new VBox(10);
+        section.setPadding(new Insets(20));
+        section.getStyleClass().add("report-type-section");
+        HBox btns = new HBox(15); btns.setAlignment(Pos.CENTER_LEFT);
+        
+        Button revBtn = new Button("Revenue Report"); revBtn.getStyleClass().add("selected");
+        revBtn.setOnAction(e -> { currentReportType="Revenue Report"; updateReportDisplay(); });
+        
+        Button colBtn = new Button("Collections Report");
+        colBtn.setOnAction(e -> { currentReportType="Collections Report"; updateReportDisplay(); });
+        
+        Button growBtn = new Button("Member Growth");
+        growBtn.setOnAction(e -> { currentReportType="Member Growth"; updateReportDisplay(); });
+        
+        btns.getChildren().addAll(revBtn, colBtn, growBtn);
+        section.getChildren().addAll(new Label("FINANCIAL REPORTS"), btns);
+        return section;
     }
     
-    private VBox createMetricCard(String title, String value, String styleClass) {
+    private VBox createParametersSection() {
+        VBox section = new VBox(15);
+        section.setPadding(new Insets(20));
+        section.getStyleClass().add("parameters-section");
+        
+        HBox dates = new HBox(15); dates.setAlignment(Pos.CENTER_LEFT);
+        fromDatePicker = new DatePicker(fromDate);
+        toDatePicker = new DatePicker(toDate);
+        dates.getChildren().addAll(new Label("From:"), fromDatePicker, new Label("To:"), toDatePicker);
+        
+        HBox group = new HBox(15);
+        groupByCombo = new ComboBox<>(); groupByCombo.getItems().addAll("Daily", "Weekly", "Monthly"); groupByCombo.setValue("Daily");
+        group.getChildren().addAll(new Label("Group By:"), groupByCombo);
+        
+        HBox actions = new HBox(10);
+        Button genBtn = new Button("Generate Report");
+        genBtn.getStyleClass().add("primary-button");
+        genBtn.setOnAction(e -> generateReport());
+        
+        Button expBtn = new Button("Export CSV");
+        expBtn.setOnAction(e -> exportReport("CSV"));
+        
+        actions.getChildren().addAll(genBtn, expBtn);
+        section.getChildren().addAll(new Label("Parameters"), dates, group, actions);
+        return section;
+    }
+    
+    private VBox createReportDisplayArea() {
+        VBox box = new VBox(20);
+        box.setPadding(new Insets(20));
+        box.setMinHeight(400);
+        return box;
+    }
+    
+    private VBox createMemberGrowthReport() { return new VBox(new Label("Member Growth Report")); }
+    private VBox createCollectionsReport() { return new VBox(new Label("Collections Report")); }
+    
+    private VBox createMetricCard(String title, String value, String style) {
         VBox card = new VBox(5);
-        card.getStyleClass().addAll("metric-card", styleClass);
         card.setPadding(new Insets(15));
-        card.setPrefWidth(180);
-        
-        Label titleLabel = new Label(title);
-        titleLabel.getStyleClass().add("metric-title");
-        Label valueLabel = new Label(value);
-        valueLabel.getStyleClass().add("metric-value");
-        
-        card.getChildren().addAll(titleLabel, valueLabel);
+        card.setStyle("-fx-background-color: white; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.1), 5, 0, 0, 0);");
+        card.getChildren().addAll(new Label(title), new Label(value));
         return card;
     }
     
-    private void showAlert(String title, String message) {
-        Alert alert = new Alert(Alert.AlertType.WARNING);
-        alert.setTitle(title);
-        alert.setHeaderText(null);
-        alert.setContentText(message);
-        alert.showAndWait();
+    private void showAlert(String title, String msg) {
+        Alert a = new Alert(Alert.AlertType.INFORMATION);
+        a.setTitle(title); a.setContentText(msg); a.showAndWait();
     }
     
-    // Data model for Revenue Table
     public static class RevenueBreakdown {
         private final StringProperty category, amount, count, avg;
-        public RevenueBreakdown(String c, String a, String ct, String av) {
-            this.category = new SimpleStringProperty(c);
-            this.amount = new SimpleStringProperty(a);
-            this.count = new SimpleStringProperty(ct);
-            this.avg = new SimpleStringProperty(av);
+        public RevenueBreakdown(String c, String a, String co, String av) {
+            this.category = new SimpleStringProperty(c); this.amount = new SimpleStringProperty(a);
+            this.count = new SimpleStringProperty(co); this.avg = new SimpleStringProperty(av);
         }
         public StringProperty categoryProperty() { return category; }
         public StringProperty amountProperty() { return amount; }

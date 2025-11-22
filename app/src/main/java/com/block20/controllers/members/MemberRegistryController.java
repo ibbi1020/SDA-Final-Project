@@ -14,7 +14,6 @@ import javafx.collections.ObservableList;
 import java.util.function.Consumer;
 import java.util.List;
 
-
 public class MemberRegistryController extends ScrollPane {
     private VBox contentContainer;
     private TableView<Member> membersTable;

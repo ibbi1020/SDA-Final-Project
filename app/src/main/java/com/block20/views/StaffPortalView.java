@@ -5,6 +5,7 @@
 package com.block20.views;
 
 import com.block20.services.MemberService;
+import com.block20.services.ExportService;
 import com.block20.components.SidebarNavigation;
 import com.block20.components.TopNavigation;
 import com.block20.controllers.staff.StaffDashboardController;
@@ -40,12 +41,13 @@ public class StaffPortalView {
     
     private final MemberService memberService; 
     private final EquipmentService equipmentService;
-    
-    public StaffPortalView(String staffName, String staffRole, MemberService memberService, EquipmentService equipmentService) {
+    private final ExportService exportService;
+    public StaffPortalView(String staffName, String staffRole, MemberService memberService, EquipmentService equipmentService, ExportService exportService) {
         this.staffName = staffName;
         this.staffRole = staffRole;
         this.memberService = memberService;
         this.equipmentService = equipmentService;
+        this.exportService = exportService;
         initializeView();
     }
     
@@ -197,7 +199,7 @@ public class StaffPortalView {
      */
     private void showReportsFinancial() {
         // PASS THE SERVICE
-        FinancialReportsController financialReportsController = new FinancialReportsController(this::handleNavigation, this.memberService);
+        FinancialReportsController financialReportsController = new FinancialReportsController(this::handleNavigation, this.memberService, this.exportService);
         setContent(financialReportsController); // Add .getView() if your controller requires it
     }
     
