@@ -12,8 +12,23 @@ public class MemberRepositoryImpl implements MemberRepository {
 
     @Override
     public void save(Member member) {
-        memberTable.add(member);
-        System.out.println("Repo: Saved member " + member.getFullName());
+        // 1. Check if this member is already in the list
+        boolean exists = false;
+        for (int i = 0; i < memberTable.size(); i++) {
+            if (memberTable.get(i).getMemberId().equals(member.getMemberId())) {
+                // Found it! Update the existing record
+                memberTable.set(i, member);
+                exists = true;
+                System.out.println("Repo: Updated existing member " + member.getFullName());
+                break;
+            }
+        }
+
+        // 2. If not found, add it as new
+        if (!exists) {
+            memberTable.add(member);
+            System.out.println("Repo: Saved new member " + member.getFullName());
+        }
     }
 
     @Override

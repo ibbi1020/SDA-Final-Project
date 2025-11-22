@@ -9,8 +9,9 @@ public interface MemberService {
     Member registerMember(String fullName, String email, String phone, String planType);
     List<Member> getAllMembers();
     // Add this new method
-Attendance checkInMember(String memberId);
-void checkOutMember(String memberId);
+    Attendance checkInMember(String memberId);
+    void checkOutMember(String memberId);
     boolean isMemberCheckedIn(String memberId);
     int getCurrentOccupancyCount();
+    void renewMembership(String memberId, String newPlanType);
 }

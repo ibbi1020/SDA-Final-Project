@@ -7,6 +7,7 @@ import com.block20.repositories.MemberRepository;
 import com.block20.services.MemberService;
 import java.util.List;
 import java.util.UUID;
+import java.time.LocalDate;
 
 public class MemberServiceImpl implements MemberService {
     
@@ -83,5 +84,29 @@ public class MemberServiceImpl implements MemberService {
     @Override
     public int getCurrentOccupancyCount() {
         return attendanceRepo.countActiveVisits();
+    }
+    @Override
+    public void renewMembership(String memberId, String newPlanType) {
+        // 1. Find Member
+        Member member = memberRepo.findAll().stream()
+            .filter(m -> m.getMemberId().equals(memberId))
+            .findFirst()
+            .orElseThrow(() -> new IllegalArgumentException("Member not found"));
+
+        // 2. Update Logic
+        member.setPlanType(newPlanType);
+        member.setStatus("Active"); // Reactivate if they were expired
+        
+        // Extend by 1 month (Simple logic for now)
+        // If already expired, start from today. If active, add to existing date.
+        if (member.getExpiryDate().isBefore(LocalDate.now())) {
+            member.setExpiryDate(LocalDate.now().plusMonths(1));
+        } else {
+            member.setExpiryDate(member.getExpiryDate().plusMonths(1));
+        }
+
+        // 3. Save (In-memory repo updates by reference, but good to call save for SQL later)
+        memberRepo.save(member); 
+        System.out.println("Renewed: " + member.getFullName() + " until " + member.getExpiryDate());
     }
 }

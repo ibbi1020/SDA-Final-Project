@@ -10,6 +10,7 @@ public class Member {
     private String status;
     private String planType;
     private LocalDate joinDate;
+    private LocalDate expiryDate;
 
     public Member(String memberId, String fullName, String email, String phone, String planType) {
         this.memberId = memberId;
@@ -21,6 +22,7 @@ public class Member {
         // Defaults
         this.status = "Active";
         this.joinDate = LocalDate.now();
+        this.expiryDate = LocalDate.now().plusMonths(1);
     }
 
     // Getters
@@ -31,10 +33,12 @@ public class Member {
     public String getStatus() { return status; }
     public String getPlanType() { return planType; }
     public LocalDate getJoinDate() { return joinDate; }
-
+    public LocalDate getExpiryDate() { return expiryDate; }
     // Setters
     public void setFullName(String fullName) { this.fullName = fullName; }
     public void setPhone(String phone) { this.phone = phone; }
     public void setStatus(String status) { this.status = status; }
     public void setPlanType(String planType) { this.planType = planType; }
+    public void setExpiryDate(LocalDate expiryDate) { this.expiryDate = expiryDate; }
+
 }

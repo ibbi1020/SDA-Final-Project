@@ -153,9 +153,10 @@ private void showEnrollmentNew() {
     /**
      * Show renewals view (pending renewals + renewal processing)
      */
-    private void showRenewals() {
-        RenewalsController renewalsController = new RenewalsController(this::handleNavigation);
-        setContent(renewalsController.getView());
+private void showRenewals() {
+        // PASS THE SERVICE
+        RenewalsController renewalsController = new RenewalsController(this::handleNavigation, this.memberService);
+        setContent(renewalsController.getView()); // Note: check if your controller extends Region or has getView()
     }
     
     /**
