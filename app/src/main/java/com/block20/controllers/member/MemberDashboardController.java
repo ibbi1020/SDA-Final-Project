@@ -4,6 +4,10 @@
  */
 package com.block20.controllers.member;
 
+import com.block20.models.Attendance;
+import com.block20.models.Member;
+import com.block20.services.MemberService;
+
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
@@ -13,6 +17,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.Comparator;
+import java.util.List;
 import java.util.function.Consumer;
 
 /**
@@ -25,15 +31,30 @@ public class MemberDashboardController extends ScrollPane {
     private String memberName;
     private Consumer<String> navigationHandler;
     
-    // Mock member data
-    private MemberData memberData;
+    // NEW: Service Dependency
+    private MemberService memberService;
     
-    public MemberDashboardController(String memberId, String memberName, Consumer<String> navigationHandler) {
+    // Data storage
+    private Member memberData;
+    
+    // UPDATED: Constructor accepts MemberService
+    public MemberDashboardController(String memberId, String memberName, Consumer<String> navigationHandler, MemberService memberService) {
         this.memberId = memberId;
         this.memberName = memberName;
         this.navigationHandler = navigationHandler;
-        this.memberData = generateMockMemberData();
+        this.memberService = memberService;
+        
+        loadRealData(); // <--- NEW: Load from DB
         initializeView();
+    }
+    
+    // NEW: Fetch data from SQLite
+    private void loadRealData() {
+        this.memberData = memberService.getMemberById(memberId);
+        if (this.memberData == null) {
+            // Fallback if member deleted but session active
+            System.err.println("Error: Member not found in DB");
+        }
     }
     
     private void initializeView() {
@@ -48,13 +69,17 @@ public class MemberDashboardController extends ScrollPane {
         contentContainer.setPadding(new Insets(32));
         contentContainer.getStyleClass().add("main-content");
         
-        contentContainer.getChildren().addAll(
-            createHeader(),
-            createMembershipStatusCard(),
-            createQuickActionsSection(),
-            createUpcomingSessionsSection(),
-            createPaymentSummarySection()
-        );
+        if (memberData != null) {
+            contentContainer.getChildren().addAll(
+                createHeader(),
+                createMembershipStatusCard(),
+                createQuickActionsSection(),
+                createUpcomingSessionsSection(), // Keeps mock sessions for now (Partner B domain)
+                createRecentActivitySection()    // <--- NEW: Real Attendance History
+            );
+        } else {
+            contentContainer.getChildren().add(new Label("Error loading dashboard. Member not found."));
+        }
         
         setContent(contentContainer);
     }
@@ -65,7 +90,8 @@ public class MemberDashboardController extends ScrollPane {
     private VBox createHeader() {
         VBox header = new VBox(8);
         
-        Text title = new Text("Welcome, " + memberName + "!");
+        // Use real name from DB
+        Text title = new Text("Welcome, " + memberData.getFullName() + "!");
         title.getStyleClass().add("text-h2");
         
         Text subtitle = new Text(LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, MMMM dd, yyyy")));
@@ -96,12 +122,15 @@ public class MemberDashboardController extends ScrollPane {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
         
-        Label statusBadge = new Label(memberData.status);
+        // Real Status
+        Label statusBadge = new Label(memberData.getStatus());
         statusBadge.getStyleClass().add("badge");
-        if (memberData.status.equals("Active")) {
+        if ("Active".equalsIgnoreCase(memberData.getStatus())) {
             statusBadge.getStyleClass().add("badge-success");
-        } else if (memberData.status.equals("Expiring Soon")) {
+            statusBadge.setStyle("-fx-background-color: #D1FAE5; -fx-text-fill: #065F46;");
+        } else {
             statusBadge.getStyleClass().add("badge-warning");
+            statusBadge.setStyle("-fx-background-color: #FEE2E2; -fx-text-fill: #991B1B;");
         }
         
         cardHeader.getChildren().addAll(icon, cardTitle, spacer, statusBadge);
@@ -111,37 +140,37 @@ public class MemberDashboardController extends ScrollPane {
         infoGrid.setHgap(40);
         infoGrid.setVgap(16);
         
-        // Column 1
-        infoGrid.add(createInfoItem("Plan", memberData.plan), 0, 0);
-        infoGrid.add(createInfoItem("Member Since", memberData.memberSince.format(DateTimeFormatter.ofPattern("MMM dd, yyyy"))), 0, 1);
+        // Real Data Fields
+        infoGrid.add(createInfoItem("Plan", memberData.getPlanType()), 0, 0);
+        infoGrid.add(createInfoItem("Member Since", memberData.getJoinDate().format(DateTimeFormatter.ofPattern("MMM dd, yyyy"))), 0, 1);
         
-        // Column 2
-        infoGrid.add(createInfoItem("Expiry Date", memberData.expiryDate.format(DateTimeFormatter.ofPattern("MMM dd, yyyy"))), 1, 0);
-        long daysUntil = ChronoUnit.DAYS.between(LocalDate.now(), memberData.expiryDate);
+        infoGrid.add(createInfoItem("Expiry Date", memberData.getExpiryDate().format(DateTimeFormatter.ofPattern("MMM dd, yyyy"))), 1, 0);
+        
+        long daysUntil = ChronoUnit.DAYS.between(LocalDate.now(), memberData.getExpiryDate());
         String daysRemaining = daysUntil > 0 ? daysUntil + " days remaining" : "Expired";
         infoGrid.add(createInfoItem("Days Remaining", daysRemaining), 1, 1);
         
         card.getChildren().addAll(cardHeader, new Separator(), infoGrid);
         
         // Renewal reminder if expiring soon
-        if (daysUntil <= 30 && daysUntil > 0) {
+        if (daysUntil <= 30) { // Show if expired or expiring soon
             HBox reminderBox = new HBox(12);
             reminderBox.getStyleClass().add("alert-box");
-            reminderBox.getStyleClass().add("alert-warning");
             reminderBox.setAlignment(Pos.CENTER_LEFT);
             reminderBox.setPadding(new Insets(12, 16, 12, 16));
+            reminderBox.setStyle("-fx-background-color: #FEF3C7; -fx-background-radius: 8;");
             
             Label warningIcon = new Label("⚠️");
             warningIcon.setStyle("-fx-font-size: 20px;");
             
-            Text reminderText = new Text("Your membership expires in " + daysUntil + " days. Renew now to avoid interruption!");
-            reminderText.getStyleClass().add("text-body-sm");
+            String msg = daysUntil < 0 ? "Your membership has expired." : "Expires in " + daysUntil + " days.";
+            Text reminderText = new Text(msg + " Renew now to avoid interruption!");
             
             Region reminderSpacer = new Region();
             HBox.setHgrow(reminderSpacer, Priority.ALWAYS);
             
             Button renewButton = new Button("Renew Now");
-            renewButton.getStyleClass().addAll("primary-button", "button-small");
+            renewButton.getStyleClass().addAll("primary-button");
             renewButton.setOnAction(e -> navigationHandler.accept("membership"));
             
             reminderBox.getChildren().addAll(warningIcon, reminderText, reminderSpacer, renewButton);
@@ -151,15 +180,11 @@ public class MemberDashboardController extends ScrollPane {
         return card;
     }
     
-    /**
-     * Create info item for grid
-     */
     private VBox createInfoItem(String label, String value) {
         VBox item = new VBox(4);
-        
         Text labelText = new Text(label);
         labelText.getStyleClass().add("text-caption");
-        labelText.setStyle("-fx-fill: -fx-gray-600;");
+        labelText.setStyle("-fx-fill: #64748B;");
         
         Text valueText = new Text(value);
         valueText.getStyleClass().add("text-body");
@@ -190,205 +215,109 @@ public class MemberDashboardController extends ScrollPane {
         return section;
     }
     
-    /**
-     * Create quick action card
-     */
     private VBox createQuickActionCard(String icon, String title, String description, String destination) {
         VBox card = new VBox(12);
         card.getStyleClass().add("card");
         card.setPadding(new Insets(20));
-        card.setMaxWidth(280);
-        card.setMinWidth(200);
-        card.setAlignment(Pos.TOP_LEFT);
-        card.setStyle("-fx-cursor: hand;");
+        card.setPrefWidth(250);
+        card.setStyle("-fx-background-color: white; -fx-border-color: #E2E8F0; -fx-border-radius: 8; -fx-cursor: hand;");
         card.setOnMouseClicked(e -> navigationHandler.accept(destination));
         
         Label iconLabel = new Label(icon);
         iconLabel.setStyle("-fx-font-size: 32px;");
         
         Text titleText = new Text(title);
-        titleText.getStyleClass().add("text-body");
-        titleText.setStyle("-fx-font-weight: 600;");
+        titleText.setStyle("-fx-font-weight: 600; -fx-font-size: 16px;");
         
         Text descText = new Text(description);
-        descText.getStyleClass().add("text-caption");
-        descText.setStyle("-fx-fill: -fx-gray-600;");
-        descText.setWrappingWidth(240);
+        descText.setStyle("-fx-fill: #64748B;");
+        descText.setWrappingWidth(200);
         
         card.getChildren().addAll(iconLabel, titleText, descText);
-        
-        // Hover effect
-        card.setOnMouseEntered(e -> card.setStyle("-fx-cursor: hand; -fx-background-color: -fx-gray-50;"));
-        card.setOnMouseExited(e -> card.setStyle("-fx-cursor: hand; -fx-background-color: white;"));
-        
         return card;
     }
     
     /**
-     * Create upcoming sessions section
+     * NEW: Create Recent Activity Section (Replaces Mock Payment Summary for now)
+     * Shows real check-in history from DB.
      */
+    private VBox createRecentActivitySection() {
+        VBox section = new VBox(16);
+        
+        HBox sectionHeader = new HBox(12);
+        sectionHeader.setAlignment(Pos.CENTER_LEFT);
+        
+        Text sectionTitle = new Text("Recent Activity");
+        sectionTitle.getStyleClass().add("text-h3");
+        
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        
+        Button viewAllButton = new Button("View Full History");
+        viewAllButton.setOnAction(e -> navigationHandler.accept("attendance"));
+        
+        sectionHeader.getChildren().addAll(sectionTitle, spacer, viewAllButton);
+        
+        VBox activityList = new VBox(10);
+        
+        // 1. Get Real History
+        List<Attendance> history = memberService.getAttendanceForMember(memberId);
+        
+        if (history.isEmpty()) {
+            Label empty = new Label("No recent activity found.");
+            empty.setStyle("-fx-text-fill: #64748B;");
+            activityList.getChildren().add(empty);
+        } else {
+            // Sort newest first
+            history.sort(Comparator.comparing(Attendance::getCheckInTime).reversed());
+            
+            // Show top 3
+            for (int i = 0; i < Math.min(3, history.size()); i++) {
+                Attendance visit = history.get(i);
+                activityList.getChildren().add(createActivityCard(visit));
+            }
+        }
+        
+        section.getChildren().addAll(sectionHeader, activityList);
+        return section;
+    }
+    
+    private HBox createActivityCard(Attendance visit) {
+        HBox card = new HBox(16);
+        card.setPadding(new Insets(16));
+        card.setAlignment(Pos.CENTER_LEFT);
+        card.setStyle("-fx-background-color: white; -fx-border-color: #E2E8F0; -fx-border-radius: 8;");
+        
+        Label icon = new Label("📍");
+        icon.setStyle("-fx-font-size: 20px;");
+        
+        VBox details = new VBox(4);
+        Text title = new Text("Gym Visit");
+        title.setStyle("-fx-font-weight: 600;");
+        
+        String date = visit.getCheckInTime().format(DateTimeFormatter.ofPattern("MMM dd, yyyy"));
+        String time = visit.getCheckInTime().format(DateTimeFormatter.ofPattern("h:mm a"));
+        Text sub = new Text(date + " at " + time);
+        sub.setStyle("-fx-fill: #64748B;");
+        
+        details.getChildren().addAll(title, sub);
+        
+        card.getChildren().addAll(icon, details);
+        return card;
+    }
+
+    // Keeps the mock session section for now (Partner B needs to implement real sessions)
     private VBox createUpcomingSessionsSection() {
         VBox section = new VBox(16);
-        
-        HBox sectionHeader = new HBox(12);
-        sectionHeader.setAlignment(Pos.CENTER_LEFT);
-        
-        Text sectionTitle = new Text("Upcoming Training Sessions");
-        sectionTitle.getStyleClass().add("text-h3");
-        
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-        
-        Button viewAllButton = new Button("View All");
-        viewAllButton.getStyleClass().addAll("secondary-button", "button-small");
-        viewAllButton.setOnAction(e -> navigationHandler.accept("training"));
-        
-        sectionHeader.getChildren().addAll(sectionTitle, spacer, viewAllButton);
-        
-        VBox sessionsList = new VBox(12);
-        
-        // Mock upcoming sessions
-        sessionsList.getChildren().addAll(
-            createSessionCard("Personal Training", "John Smith", LocalDateTime.now().plusDays(2).withHour(14).withMinute(0)),
-            createSessionCard("Yoga Class", "Sarah Johnson", LocalDateTime.now().plusDays(5).withHour(10).withMinute(30)),
-            createSessionCard("HIIT Session", "Mike Davis", LocalDateTime.now().plusDays(7).withHour(18).withMinute(0))
-        );
-        
-        section.getChildren().addAll(sectionHeader, sessionsList);
+        Text t = new Text("Upcoming Sessions (Mock Data)");
+        t.getStyleClass().add("text-h3");
+        section.getChildren().add(t);
+        // Placeholder logic preserved
         return section;
     }
     
-    /**
-     * Create session card
-     */
-    private HBox createSessionCard(String sessionType, String trainerName, LocalDateTime dateTime) {
-        HBox card = new HBox(16);
-        card.getStyleClass().add("card");
-        card.setAlignment(Pos.CENTER_LEFT);
-        card.setPadding(new Insets(16));
-        
-        // Date box
-        VBox dateBox = new VBox(4);
-        dateBox.setAlignment(Pos.CENTER);
-        dateBox.setPrefWidth(60);
-        dateBox.setStyle("-fx-background-color: -fx-primary-50; -fx-background-radius: 8; -fx-padding: 8;");
-        
-        Text month = new Text(dateTime.format(DateTimeFormatter.ofPattern("MMM")));
-        month.getStyleClass().add("text-caption");
-        month.setStyle("-fx-fill: -fx-primary-600; -fx-font-weight: 600;");
-        
-        Text day = new Text(dateTime.format(DateTimeFormatter.ofPattern("dd")));
-        day.getStyleClass().add("text-h3");
-        day.setStyle("-fx-fill: -fx-primary-600;");
-        
-        dateBox.getChildren().addAll(month, day);
-        
-        // Session info
-        VBox info = new VBox(4);
-        HBox.setHgrow(info, Priority.ALWAYS);
-        
-        Text sessionName = new Text(sessionType);
-        sessionName.getStyleClass().add("text-body");
-        sessionName.setStyle("-fx-font-weight: 600;");
-        
-        HBox detailsBox = new HBox(12);
-        detailsBox.setAlignment(Pos.CENTER_LEFT);
-        
-        Text trainer = new Text("👤 " + trainerName);
-        trainer.getStyleClass().add("text-body-sm");
-        trainer.setStyle("-fx-fill: -fx-gray-600;");
-        
-        Text time = new Text("🕐 " + dateTime.format(DateTimeFormatter.ofPattern("h:mm a")));
-        time.getStyleClass().add("text-body-sm");
-        time.setStyle("-fx-fill: -fx-gray-600;");
-        
-        detailsBox.getChildren().addAll(trainer, time);
-        
-        info.getChildren().addAll(sessionName, detailsBox);
-        
-        card.getChildren().addAll(dateBox, info);
-        return card;
-    }
-    
-    /**
-     * Create payment summary section
-     */
+    // Helper for creating Payment Summary (retained structure, but empty for now)
     private VBox createPaymentSummarySection() {
-        VBox section = new VBox(16);
-        
-        HBox sectionHeader = new HBox(12);
-        sectionHeader.setAlignment(Pos.CENTER_LEFT);
-        
-        Text sectionTitle = new Text("Payment Summary");
-        sectionTitle.getStyleClass().add("text-h3");
-        
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-        
-        Button viewAllButton = new Button("View Details");
-        viewAllButton.getStyleClass().addAll("secondary-button", "button-small");
-        viewAllButton.setOnAction(e -> navigationHandler.accept("payments"));
-        
-        sectionHeader.getChildren().addAll(sectionTitle, spacer, viewAllButton);
-        
-        FlowPane summaryCards = new FlowPane(16, 16);
-        
-        summaryCards.getChildren().addAll(
-            createPaymentSummaryCard("Current Balance", "$0.00", "badge-success"),
-            createPaymentSummaryCard("Next Payment Due", memberData.expiryDate.format(DateTimeFormatter.ofPattern("MMM dd")), "badge-info"),
-            createPaymentSummaryCard("Last Payment", "$29.99 - " + LocalDate.now().minusMonths(1).format(DateTimeFormatter.ofPattern("MMM dd")), "badge-neutral")
-        );
-        
-        section.getChildren().addAll(sectionHeader, summaryCards);
-        return section;
-    }
-    
-    /**
-     * Create payment summary card
-     */
-    private VBox createPaymentSummaryCard(String label, String value, String badgeClass) {
-        VBox card = new VBox(8);
-        card.getStyleClass().add("card");
-        card.setPadding(new Insets(20));
-        card.setMaxWidth(280);
-        card.setMinWidth(200);
-        
-        Text labelText = new Text(label);
-        labelText.getStyleClass().add("text-caption");
-        labelText.setStyle("-fx-fill: -fx-gray-600;");
-        
-        Text valueText = new Text(value);
-        valueText.getStyleClass().add("text-body");
-        valueText.setStyle("-fx-font-weight: 600; -fx-font-size: 18px;");
-        valueText.setWrappingWidth(240);
-        
-        card.getChildren().addAll(labelText, valueText);
-        return card;
-    }
-    
-    /**
-     * Generate mock member data
-     */
-    private MemberData generateMockMemberData() {
-        MemberData data = new MemberData();
-        data.memberId = memberId;
-        data.memberName = memberName;
-        data.plan = "Premium Monthly";
-        data.status = "Active";
-        data.memberSince = LocalDate.now().minusYears(2).minusMonths(3);
-        data.expiryDate = LocalDate.now().plusDays(15); // Expiring soon
-        return data;
-    }
-    
-    /**
-     * Member data class
-     */
-    private static class MemberData {
-        String memberId;
-        String memberName;
-        String plan;
-        String status;
-        LocalDate memberSince;
-        LocalDate expiryDate;
+        return new VBox(); // Hidden until we link Payment Service
     }
 }

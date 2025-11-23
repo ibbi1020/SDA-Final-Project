@@ -13,9 +13,8 @@ repositories {
 }
 
 dependencies {
-    // MySQL Database Connector
-    implementation 'mysql:mysql-connector-java:8.0.33'
-    
+    // SQLite Database Connector
+    implementation 'org.xerial:sqlite-jdbc:3.46.0.0'    
     // JUnit for testing
     testImplementation libs.junit
     

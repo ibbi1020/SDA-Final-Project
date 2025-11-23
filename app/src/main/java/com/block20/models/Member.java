@@ -11,34 +11,34 @@ public class Member {
     private String planType;
     private LocalDate joinDate;
     private LocalDate expiryDate;
+    
+    // New Fields
     private String address;
     private String emergencyContactName;
     private String emergencyContactPhone;
     private String emergencyContactRelationship;
 
-    public Member(String memberId,
-                  String fullName,
-                  String email,
-                  String phone,
-                  String planType,
-                  String address,
-                  String emergencyContactName,
-                  String emergencyContactPhone,
-                  String emergencyContactRelationship) {
+    // Constructor for Loading from DB (Full)
+    public Member(String memberId, String fullName, String email, String phone, String planType, 
+                  String address, String emName, String emPhone, String emRel) {
         this.memberId = memberId;
         this.fullName = fullName;
         this.email = email;
         this.phone = phone;
         this.planType = planType;
-        this.address = address;
-        this.emergencyContactName = emergencyContactName;
-        this.emergencyContactPhone = emergencyContactPhone;
-        this.emergencyContactRelationship = emergencyContactRelationship;
-        
-        // Defaults
         this.status = "Active";
         this.joinDate = LocalDate.now();
         this.expiryDate = LocalDate.now().plusMonths(1);
+        
+        this.address = address;
+        this.emergencyContactName = emName;
+        this.emergencyContactPhone = emPhone;
+        this.emergencyContactRelationship = emRel;
+    }
+
+    // Constructor for New Registration (Simple)
+    public Member(String memberId, String fullName, String email, String phone, String planType) {
+        this(memberId, fullName, email, phone, planType, "", "", "", "");
     }
 
     // Getters
@@ -50,20 +50,27 @@ public class Member {
     public String getPlanType() { return planType; }
     public LocalDate getJoinDate() { return joinDate; }
     public LocalDate getExpiryDate() { return expiryDate; }
+    
+    // New Getters (Fixes "cannot find symbol")
     public String getAddress() { return address; }
     public String getEmergencyContactName() { return emergencyContactName; }
     public String getEmergencyContactPhone() { return emergencyContactPhone; }
     public String getEmergencyContactRelationship() { return emergencyContactRelationship; }
+    // Helper alias if code uses "Relation"
+    public String getEmergencyContactRelation() { return emergencyContactRelationship; } 
+
     // Setters
     public void setFullName(String fullName) { this.fullName = fullName; }
+    public void setEmail(String email) { this.email = email; }
     public void setPhone(String phone) { this.phone = phone; }
     public void setStatus(String status) { this.status = status; }
     public void setPlanType(String planType) { this.planType = planType; }
-    public void setAddress(String address) { this.address = address; }
     public void setExpiryDate(LocalDate expiryDate) { this.expiryDate = expiryDate; }
-    public void setEmail(String email) { this.email = email; }
-    public void setEmergencyContactName(String emergencyContactName) { this.emergencyContactName = emergencyContactName; }
-    public void setEmergencyContactPhone(String emergencyContactPhone) { this.emergencyContactPhone = emergencyContactPhone; }
-    public void setEmergencyContactRelationship(String emergencyContactRelationship) { this.emergencyContactRelationship = emergencyContactRelationship; }
-
+    
+    public void setAddress(String address) { this.address = address; }
+    public void setEmergencyContactName(String n) { this.emergencyContactName = n; }
+    public void setEmergencyContactPhone(String p) { this.emergencyContactPhone = p; }
+    public void setEmergencyContactRelationship(String r) { this.emergencyContactRelationship = r; }
+    // Helper alias
+    public void setEmergencyContactRelation(String r) { this.emergencyContactRelationship = r; }
 }

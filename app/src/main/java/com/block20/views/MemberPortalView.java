@@ -221,17 +221,18 @@ public class MemberPortalView {
      * Show member dashboard
      */
     private void showDashboard() {
-        MemberDashboardController dashboard = new MemberDashboardController(memberId, memberName, this::handleNavigation);
+        MemberDashboardController dashboard = new MemberDashboardController(memberId, memberName, this::handleNavigation, this.memberService);
         setContent(dashboard);
     }
     
     /**
      * Show membership management (renewals, plan info)
      */
-    private void showMembership() {
-        MemberMembershipController membershipController = new MemberMembershipController(memberId, this::handleNavigation);
-        setContent(membershipController);
-    }
+private void showMembership() {
+    // FIX: Added memberService
+    MemberMembershipController membershipController = new MemberMembershipController(memberId, this::handleNavigation, this.memberService);
+    setContent(membershipController);
+}
     
     /**
      * Show training sessions (book, view upcoming)
@@ -250,18 +251,19 @@ public class MemberPortalView {
     /**
      * Show payments and billing
      */
-    private void showPayments() {
-        MemberPaymentsController paymentsController = new MemberPaymentsController(memberId, paymentService);
-        setContent(paymentsController);
-    }
-    
+ private void showPayments() {
+    // FIX: Changed paymentService to memberService
+    MemberPaymentsController paymentsController = new MemberPaymentsController(memberId, this.memberService);
+    setContent(paymentsController);
+}
     /**
      * Show attendance history
      */
-    private void showAttendance() {
-        MemberAttendanceController attendanceController = new MemberAttendanceController(memberId);
-        setContent(attendanceController);
-    }
+private void showAttendance() {
+    // FIX: Added memberService
+    MemberAttendanceController attendanceController = new MemberAttendanceController(memberId, this.memberService);
+    setContent(attendanceController);
+}
     
     /**
      * Show member profile
@@ -304,4 +306,5 @@ public class MemberPortalView {
     public BorderPane getView() {
         return rootView;
     }
+    
 }

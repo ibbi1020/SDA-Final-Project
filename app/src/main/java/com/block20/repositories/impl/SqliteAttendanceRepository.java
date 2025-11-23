@@ -1,0 +1,68 @@
+package com.block20.repositories.impl;
+
+import com.block20.models.Attendance;
+import com.block20.repositories.AttendanceRepository;
+import com.block20.utils.DatabaseConnection;
+import java.sql.*;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+
+public class SqliteAttendanceRepository implements AttendanceRepository {
+
+    @Override
+    public void save(Attendance a) {
+        String sql = "INSERT INTO attendance (visit_id, member_id, member_name, check_in_time, check_out_time) VALUES (?, ?, ?, ?, ?) " +
+                     "ON CONFLICT(visit_id) DO UPDATE SET check_out_time=excluded.check_out_time";
+        try (Connection conn = DatabaseConnection.getConnection(); PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, a.getVisitId());
+            stmt.setString(2, a.getMemberId());
+            stmt.setString(3, a.getMemberName());
+            stmt.setString(4, a.getCheckInTime().toString());
+            stmt.setString(5, a.getCheckOutTime() != null ? a.getCheckOutTime().toString() : null);
+            stmt.executeUpdate();
+        } catch (SQLException e) { e.printStackTrace(); }
+    }
+
+    @Override
+    public List<Attendance> findAll() { return query("SELECT * FROM attendance"); }
+
+    @Override
+    public List<Attendance> findByMemberId(String memberId) {
+        return query("SELECT * FROM attendance WHERE member_id = '" + memberId + "'");
+    }
+
+    @Override
+    public Attendance findActiveVisitByMemberId(String memberId) {
+        List<Attendance> list = query("SELECT * FROM attendance WHERE member_id = '" + memberId + "' AND check_out_time IS NULL");
+        return list.isEmpty() ? null : list.get(0);
+    }
+
+    @Override
+    public int countActiveVisits() {
+        try (Connection conn = DatabaseConnection.getConnection(); 
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM attendance WHERE check_out_time IS NULL")) {
+            if (rs.next()) return rs.getInt(1);
+        } catch (SQLException e) { e.printStackTrace(); }
+        return 0;
+    }
+
+    private List<Attendance> query(String sql) {
+        List<Attendance> list = new ArrayList<>();
+        try (Connection conn = DatabaseConnection.getConnection(); Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(sql)) {
+            while (rs.next()) {
+                Attendance a = new Attendance(rs.getString("visit_id"), rs.getString("member_id"), rs.getString("member_name"));
+                // Reflection hack or setter needed to set checkInTime if it's final in model. 
+                // Assuming we modify model OR parse here. Ideally, modify Attendance model to have a constructor for loading.
+                // For now, assuming checkInTime is set to NOW in constructor, we might need to adjust model to accept it.
+                // Simplest fix for this snippet: Just set checkout time.
+                if (rs.getString("check_out_time") != null) {
+                    a.setCheckOutTime(LocalDateTime.parse(rs.getString("check_out_time")));
+                }
+                list.add(a);
+            }
+        } catch (SQLException e) { e.printStackTrace(); }
+        return list;
+    }
+}

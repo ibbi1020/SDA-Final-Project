@@ -9,39 +9,40 @@ import com.block20.repositories.MemberRepository;
 import com.block20.repositories.TransactionRepository; // <--- NEW
 import com.block20.services.MemberService;
 import com.block20.services.AuditService; // <--- NEW
-import com.block20.services.NotificationService; 
+import com.block20.services.NotificationService;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
 public class MemberServiceImpl implements MemberService {
-    
+
     private MemberRepository memberRepo;
     private AttendanceRepository attendanceRepo;
     private TransactionRepository transactionRepo; // <--- NEW
     private AuditService auditService; // <--- NEW
     private NotificationService notificationService; // <--- NEW
 
-    public MemberServiceImpl(MemberRepository memberRepo, 
-                             AttendanceRepository attendanceRepo,
-                             TransactionRepository transactionRepo,
-                             AuditService auditService,
-                             NotificationService notificationService) { // <--- Add to Constructor
+    public MemberServiceImpl(MemberRepository memberRepo,
+            AttendanceRepository attendanceRepo,
+            TransactionRepository transactionRepo,
+            AuditService auditService,
+            NotificationService notificationService) { // <--- Add to Constructor
         this.memberRepo = memberRepo;
         this.attendanceRepo = attendanceRepo;
         this.transactionRepo = transactionRepo;
         this.auditService = auditService;
         this.notificationService = notificationService;
     }
+
     @Override
     public Member registerMember(String fullName,
-                                 String email,
-                                 String phone,
-                                 String planType,
-                                 String address,
-                                 String emergencyContactName,
-                                 String emergencyContactPhone,
-                                 String emergencyContactRelationship) {
+            String email,
+            String phone,
+            String planType,
+            String address,
+            String emergencyContactName,
+            String emergencyContactPhone,
+            String emergencyContactRelationship) {
         // 1. Validate Syntax
         validateMemberData(fullName, email, phone);
         validateEmergencyContact(emergencyContactName, emergencyContactPhone, emergencyContactRelationship);
@@ -53,18 +54,17 @@ public class MemberServiceImpl implements MemberService {
 
         String newId = "M" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
         Member newMember = new Member(
-            newId,
-            fullName,
-            email,
-            phone,
-            planType,
-            address,
-            emergencyContactName,
-            emergencyContactPhone,
-            emergencyContactRelationship
-        );
+                newId,
+                fullName,
+                email,
+                phone,
+                planType,
+                address,
+                emergencyContactName,
+                emergencyContactPhone,
+                emergencyContactRelationship);
         memberRepo.save(newMember);
-        
+
         notificationService.sendWelcomePacket(email, fullName, newId);
 
         // Record Transaction
@@ -72,7 +72,7 @@ public class MemberServiceImpl implements MemberService {
         String txnId = "TXN" + System.currentTimeMillis();
         Transaction txn = new Transaction(txnId, newId, "Enrollment", fee);
         transactionRepo.save(txn);
-        
+
         auditService.logAction(newId, "CREATED", "Member enrolled with plan: " + planType);
         return newMember;
     }
@@ -80,20 +80,20 @@ public class MemberServiceImpl implements MemberService {
     @Override
     public void renewMembership(String memberId, String newPlanType) {
         Member member = memberRepo.findAll().stream()
-            .filter(m -> m.getMemberId().equalsIgnoreCase(memberId))
-            .findFirst()
-            .orElseThrow(() -> new IllegalArgumentException("Member not found"));
+                .filter(m -> m.getMemberId().equalsIgnoreCase(memberId))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Member not found"));
 
         member.setPlanType(newPlanType);
         member.setStatus("Active");
-        
+
         if (member.getExpiryDate().isBefore(LocalDate.now())) {
             member.setExpiryDate(LocalDate.now().plusMonths(1));
         } else {
             member.setExpiryDate(member.getExpiryDate().plusMonths(1));
         }
         memberRepo.save(member);
-        
+
         // --- NEW: RECORD PAYMENT ---
         double fee = getPlanPrice(newPlanType);
         String txnId = "TXN" + System.currentTimeMillis();
@@ -106,7 +106,8 @@ public class MemberServiceImpl implements MemberService {
 
     // Helper to get price (Matches your UI logic)
     private double getPlanPrice(String plan) {
-        if (plan == null) return 0.0;
+        if (plan == null)
+            return 0.0;
         return switch (plan) {
             case "Basic" -> 29.99;
             case "Premium" -> 49.99;
@@ -118,7 +119,9 @@ public class MemberServiceImpl implements MemberService {
 
     // ... (Keep checkInMember, checkOutMember, etc. exactly the same as before) ...
     @Override
-    public List<Member> getAllMembers() { return memberRepo.findAll(); }
+    public List<Member> getAllMembers() {
+        return memberRepo.findAll();
+    }
 
     @Override
     public Attendance checkInMember(String memberId) {
@@ -127,8 +130,10 @@ public class MemberServiceImpl implements MemberService {
                 .findFirst()
                 .orElse(null);
 
-        if (member == null) throw new IllegalArgumentException("Member ID not found: " + memberId);
-        if (!"Active".equalsIgnoreCase(member.getStatus())) throw new IllegalStateException("Access Denied: Member is " + member.getStatus());
+        if (member == null)
+            throw new IllegalArgumentException("Member ID not found: " + memberId);
+        if (!"Active".equalsIgnoreCase(member.getStatus()))
+            throw new IllegalStateException("Access Denied: Member is " + member.getStatus());
 
         String visitId = "V" + System.currentTimeMillis();
         Attendance visit = new Attendance(visitId, member.getMemberId(), member.getFullName());
@@ -139,7 +144,8 @@ public class MemberServiceImpl implements MemberService {
     @Override
     public void checkOutMember(String memberId) {
         Attendance activeVisit = attendanceRepo.findActiveVisitByMemberId(memberId);
-        if (activeVisit == null) throw new IllegalStateException("Member is not currently checked in.");
+        if (activeVisit == null)
+            throw new IllegalStateException("Member is not currently checked in.");
         activeVisit.setCheckOutTime(java.time.LocalDateTime.now());
     }
 
@@ -156,9 +162,9 @@ public class MemberServiceImpl implements MemberService {
     @Override
     public double getOutstandingBalance(String memberId) {
         Member member = memberRepo.findAll().stream()
-            .filter(m -> m.getMemberId().equals(memberId))
-            .findFirst()
-            .orElse(null);
+                .filter(m -> m.getMemberId().equals(memberId))
+                .findFirst()
+                .orElse(null);
         if (member == null) {
             return 0.0;
         }
@@ -167,48 +173,51 @@ public class MemberServiceImpl implements MemberService {
         }
         return 0.0;
     }
+
     @Override
     public List<Transaction> getAllTransactions() {
         return transactionRepo.findAll();
     }
+
     @Override
     public List<Attendance> getAllAttendanceRecords() {
         return attendanceRepo.findAll();
     }
+
     @Override
     public void updateMemberDetails(String id,
-                                    String name,
-                                    String email,
-                                    String phone,
-                                    String address,
-                                    String emergencyContactName,
-                                    String emergencyContactPhone,
-                                    String emergencyContactRelationship) {
+            String name,
+            String email,
+            String phone,
+            String address,
+            String emergencyContactName,
+            String emergencyContactPhone,
+            String emergencyContactRelationship) {
         Member m = memberRepo.findAll().stream()
-            .filter(member -> member.getMemberId().equals(id))
-            .findFirst()
-            .orElseThrow(() -> new IllegalArgumentException("Member not found"));
-            
+                .filter(member -> member.getMemberId().equals(id))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Member not found"));
+
         // 1. Validate Syntax
         validateMemberData(name, email, phone);
         validateEmergencyContact(emergencyContactName, emergencyContactPhone, emergencyContactRelationship);
-        
+
         // 2. Check Email Uniqueness (Only if email changed)
         if (!m.getEmail().equalsIgnoreCase(email)) {
             if (memberRepo.findByEmail(email) != null) {
                 throw new IllegalArgumentException("Email is already taken by another member.");
             }
         }
-        
+
         // Update fields
         m.setFullName(name);
         m.setEmail(email);
         m.setPhone(phone);
-        m.setAddress(address); 
+        m.setAddress(address);
         m.setEmergencyContactName(emergencyContactName);
         m.setEmergencyContactPhone(emergencyContactPhone);
         m.setEmergencyContactRelationship(emergencyContactRelationship);
-        
+
         memberRepo.save(m);
         auditService.logAction(id, "PROFILE_UPDATE", "Changed details.");
         System.out.println("Audit: Profile updated for " + id);
@@ -217,10 +226,10 @@ public class MemberServiceImpl implements MemberService {
     @Override
     public void changeMemberStatus(String id, String newStatus, String reason) {
         Member m = memberRepo.findAll().stream()
-            .filter(member -> member.getMemberId().equals(id))
-            .findFirst()
-            .orElseThrow(() -> new IllegalArgumentException("Member not found"));
-            
+                .filter(member -> member.getMemberId().equals(id))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Member not found"));
+
         m.setStatus(newStatus);
         memberRepo.save(m);
         StringBuilder details = new StringBuilder("Status changed to ").append(newStatus);
@@ -238,13 +247,14 @@ public class MemberServiceImpl implements MemberService {
         // Check for active debt? (Skipping for now, but this is where that logic goes)
         memberRepo.delete(id);
     }
+
     // --- VALIDATION LOGIC ---
     private void validateMemberData(String name, String email, String phone) {
         // 1. Check Empty Fields
         if (name == null || name.trim().isEmpty()) {
             throw new IllegalArgumentException("Member name cannot be empty.");
         }
-        
+
         // 2. Check Email Regex (Standard Pattern)
         // Allows: name@domain.com
         String emailRegex = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$";
@@ -258,7 +268,7 @@ public class MemberServiceImpl implements MemberService {
         if (phone == null || !phone.matches(phoneRegex)) {
             throw new IllegalArgumentException("Invalid phone format (Use 10 digits or 555-0199).");
         }
-        
+
     }
 
     private void validateEmergencyContact(String name, String phone, String relationship) {
@@ -272,8 +282,54 @@ public class MemberServiceImpl implements MemberService {
             throw new IllegalArgumentException("Emergency contact relationship is required.");
         }
     }
+
     @Override
     public List<AuditLog> getMemberHistory(String memberId) {
         return auditService.getLogsForMember(memberId);
+    }
+
+    @Override
+    public Member getMemberById(String memberId) {
+        // Use the Repository to find the member
+        return memberRepo.findAll().stream()
+                .filter(m -> m.getMemberId().equals(memberId))
+                .findFirst()
+                .orElse(null);
+    }
+
+    @Override
+    public List<Attendance> getAttendanceForMember(String memberId) {
+        // Use the Attendance Repository
+        return attendanceRepo.findByMemberId(memberId);
+    }
+
+    @Override
+    public void updateFullProfile(String id, String name, String email, String phone, String address,
+            String emName, String emPhone, String emRel) {
+        Member m = getMemberById(id);
+        if (m == null)
+            throw new IllegalArgumentException("Member not found");
+
+        // Basic Validation
+        validateMemberData(name, email, phone);
+
+        // Update Fields
+        m.setFullName(name);
+        m.setEmail(email);
+        m.setPhone(phone);
+        m.setAddress(address);
+        m.setEmergencyContactName(emName);
+        m.setEmergencyContactPhone(emPhone);
+        m.setEmergencyContactRelation(emRel);
+
+        memberRepo.save(m);
+        auditService.logAction(id, "PROFILE_UPDATE", "Member updated profile details");
+    }
+
+    @Override
+    public List<Transaction> getTransactionsForMember(String memberId) {
+        return transactionRepo.findAll().stream()
+                .filter(t -> t.getMemberId().equals(memberId))
+                .toList();
     }
 }
