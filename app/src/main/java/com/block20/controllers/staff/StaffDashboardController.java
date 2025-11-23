@@ -4,21 +4,20 @@
  */
 package com.block20.controllers.staff;
 
-import com.block20.models.Equipment;
 import com.block20.models.Transaction;
 import com.block20.services.EquipmentService;
 import com.block20.services.MemberService;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.function.Consumer;
+
 import javafx.geometry.Pos;
+import javafx.scene.Cursor;
 import javafx.scene.control.Label;
 import javafx.scene.control.ProgressBar;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.*;
-
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.util.List;
-import java.util.stream.Collectors;
 
 public class StaffDashboardController extends ScrollPane {
     
@@ -28,11 +27,16 @@ public class StaffDashboardController extends ScrollPane {
     // Dependencies
     private MemberService memberService;
     private EquipmentService equipmentService;
+    private final Consumer<String> navigationHandler;
     
-    public StaffDashboardController(String staffName, MemberService memberService, EquipmentService equipmentService) {
+    public StaffDashboardController(String staffName,
+                                    MemberService memberService,
+                                    EquipmentService equipmentService,
+                                    Consumer<String> navigationHandler) {
         this.staffName = staffName;
         this.memberService = memberService;
         this.equipmentService = equipmentService;
+        this.navigationHandler = navigationHandler;
         initializeView();
     }
     
@@ -148,25 +152,32 @@ public class StaffDashboardController extends ScrollPane {
         VBox card = new VBox(16);
         card.getStyleClass().add("card");
         
-        GridPane grid = new GridPane();
-        grid.setHgap(16);
-        grid.setVgap(16);
-        
-        grid.add(createQuickActionButton("✏️", "Create Member"), 0, 0);
-        grid.add(createQuickActionButton("✓", "Check-In"), 1, 0);
-        grid.add(createQuickActionButton("🔄", "Renew Member"), 2, 0);
-        grid.add(createQuickActionButton("🏋️", "Equipment"), 0, 1);
-        grid.add(createQuickActionButton("📊", "Reports"), 1, 1);
+        FlowPane grid = new FlowPane(16, 16);
+        grid.setPrefWrapLength(640);
+        grid.setMaxWidth(Double.MAX_VALUE);
+        grid.setAlignment(Pos.TOP_LEFT);
+        grid.getChildren().addAll(
+            createQuickActionButton("✏️", "Create Member", "enrollment-new"),
+            createQuickActionButton("✓", "Check-In", "members-checkin"),
+            createQuickActionButton("🔄", "Renew Member", "renewals"),
+            createQuickActionButton("🏋️", "Equipment", "equipment-inventory"),
+            createQuickActionButton("📊", "Reports", "reports-operational")
+        );
         
         card.getChildren().add(grid);
         section.getChildren().addAll(sectionLabel, card);
         return section;
     }
     
-    private HBox createQuickActionButton(String icon, String text) {
+    private HBox createQuickActionButton(String icon, String text, String destination) {
         HBox button = new HBox(8);
         button.getStyleClass().add("quick-action-button");
         button.setAlignment(Pos.CENTER_LEFT);
+        button.setPadding(new javafx.geometry.Insets(14));
+        button.setMinWidth(180);
+        button.setPrefWidth(220);
+        button.setMaxWidth(Double.MAX_VALUE);
+        button.setCursor(Cursor.HAND);
         
         Label iconLabel = new Label(icon);
         iconLabel.getStyleClass().add("icon");
@@ -174,6 +185,12 @@ public class StaffDashboardController extends ScrollPane {
         textLabel.getStyleClass().add("label");
         
         button.getChildren().addAll(iconLabel, textLabel);
+
+        button.setOnMouseClicked(e -> {
+            if (navigationHandler != null && destination != null) {
+                navigationHandler.accept(destination);
+            }
+        });
         return button;
     }
     

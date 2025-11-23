@@ -33,4 +33,6 @@ public interface TrainerScheduleService {
     List<TrainingSession> getAllSessions();
 
     Optional<TrainingSession> getSessionById(String sessionId);
+
+    List<TrainingSession> getSessionsForMember(String memberId);
 }

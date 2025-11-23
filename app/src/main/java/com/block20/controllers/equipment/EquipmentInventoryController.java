@@ -112,9 +112,12 @@ public class EquipmentInventoryController extends ScrollPane {
         return new VBox(header);
     }
 
-    private HBox createStatsBar() {
-        HBox stats = new HBox(24);
+    private FlowPane createStatsBar() {
+        FlowPane stats = new FlowPane(24, 16);
         stats.setPadding(new Insets(10, 0, 10, 0));
+        stats.setPrefWrapLength(520);
+        stats.setMaxWidth(Double.MAX_VALUE);
+        stats.setAlignment(Pos.CENTER_LEFT);
         
         // Recalculate stats based on live data
         List<Equipment> currentList = equipmentService.getInventory();
@@ -130,6 +133,12 @@ public class EquipmentInventoryController extends ScrollPane {
 
     private VBox createStat(String label, String value, String color) {
         VBox box = new VBox(4);
+        box.getStyleClass().add("stat-pill");
+        box.setMinWidth(160);
+        box.setPrefWidth(200);
+        box.setMaxWidth(Double.MAX_VALUE);
+        box.setPadding(new Insets(12));
+        box.setStyle("-fx-background-color: rgba(37,99,235,0.05); -fx-background-radius: 12;");
         Text val = new Text(value); val.setStyle("-fx-font-size: 24px; -fx-font-weight: bold; -fx-fill: " + color + ";");
         Text lbl = new Text(label); lbl.getStyleClass().add("text-caption");
         box.getChildren().addAll(val, lbl);

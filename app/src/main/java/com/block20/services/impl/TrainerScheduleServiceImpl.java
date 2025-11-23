@@ -10,9 +10,11 @@ import com.block20.services.TrainerService;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 public class TrainerScheduleServiceImpl implements TrainerScheduleService {
 
@@ -144,6 +146,19 @@ public class TrainerScheduleServiceImpl implements TrainerScheduleService {
     @Override
     public Optional<TrainingSession> getSessionById(String sessionId) {
         return trainingSessionRepository.findById(sessionId);
+    }
+
+    @Override
+    public List<TrainingSession> getSessionsForMember(String memberId) {
+        if (memberId == null || memberId.isBlank()) {
+            return List.of();
+        }
+        return trainingSessionRepository.findAll().stream()
+                .filter(session -> memberId.equalsIgnoreCase(session.getMemberId()))
+                .sorted(Comparator
+                        .comparing(TrainingSession::getSessionDate)
+                        .thenComparing(TrainingSession::getStartTime))
+                .collect(Collectors.toList());
     }
 
     private void validateTrainerExists(String trainerId) {

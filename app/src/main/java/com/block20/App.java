@@ -120,7 +120,14 @@ public class App extends Application {
     
     private void showMemberPortal(String memberId) {
         String memberName = "Member " + memberId;
-        MemberPortalView memberPortal = new MemberPortalView(memberId, memberName, this::handleLogout);
+        MemberPortalView memberPortal = new MemberPortalView(
+            memberId,
+            memberName,
+            this::handleLogout,
+            this.memberService,
+            this.trainerService,
+            this.trainerScheduleService
+        );
         scene = new Scene(memberPortal.getView(), 1400, 900);
         String css = getClass().getResource("/com/block20/styles/main.css").toExternalForm();
         scene.getStylesheets().add(css);
@@ -133,13 +140,15 @@ public class App extends Application {
         
         // PASS ALL 3 SERVICES
         StaffPortalView staffPortal = new StaffPortalView(
+            staffId,
             staffName, 
             staffRole, 
             this.memberService, 
             this.equipmentService,
             this.exportService,
             this.trainerService,
-            this.trainerScheduleService
+            this.trainerScheduleService,
+            this::handleLogout
         );
         
         scene = new Scene(staffPortal.getView(), 1400, 900);

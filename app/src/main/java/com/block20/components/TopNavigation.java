@@ -4,7 +4,9 @@
  */
 package com.block20.components;
 
+import java.util.function.Consumer;
 import javafx.geometry.Pos;
+import javafx.scene.Cursor;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.layout.HBox;
@@ -19,9 +21,15 @@ public class TopNavigation {
     
     private HBox rootView;
     private final String staffRole;
+    private final Consumer<String> actionHandler;
     
     public TopNavigation(String staffRole) {
+        this(staffRole, null);
+    }
+    
+    public TopNavigation(String staffRole, Consumer<String> actionHandler) {
         this.staffRole = staffRole;
+        this.actionHandler = actionHandler;
         initializeView();
     }
     
@@ -53,6 +61,7 @@ public class TopNavigation {
         HBox logoArea = new HBox(12);
         logoArea.getStyleClass().add("logo-area");
         logoArea.setAlignment(Pos.CENTER_LEFT);
+        logoArea.setCursor(Cursor.HAND);
         
         // Logo text
         Label logoText = new Label("BLOCK20");
@@ -63,6 +72,7 @@ public class TopNavigation {
         roleBadge.getStyleClass().add("role-badge");
         
         logoArea.getChildren().addAll(logoText, roleBadge);
+        logoArea.setOnMouseClicked(e -> handleAction("logo"));
         return logoArea;
     }
     
@@ -75,17 +85,22 @@ public class TopNavigation {
         
         // Notifications button
         Button notificationsBtn = createIconButton("🔔");
-        notificationsBtn.setOnAction(e -> handleNotifications());
+        notificationsBtn.setOnAction(e -> handleAction("notifications"));
         
         // User profile button
         Button profileBtn = createIconButton("👤");
-        profileBtn.setOnAction(e -> handleProfile());
+        profileBtn.setOnAction(e -> handleAction("profile"));
         
         // Settings button
         Button settingsBtn = createIconButton("⚙️");
-        settingsBtn.setOnAction(e -> handleSettings());
+        settingsBtn.setOnAction(e -> handleAction("settings"));
         
-        actionsArea.getChildren().addAll(notificationsBtn, profileBtn, settingsBtn);
+        Button logoutBtn = new Button("Logout");
+        logoutBtn.getStyleClass().add("secondary-button");
+        logoutBtn.setOnAction(e -> handleAction("logout"));
+        logoutBtn.setMinHeight(36);
+        
+        actionsArea.getChildren().addAll(notificationsBtn, profileBtn, settingsBtn, logoutBtn);
         return actionsArea;
     }
     
@@ -98,28 +113,12 @@ public class TopNavigation {
         return button;
     }
     
-    /**
-     * Handle notifications button click
-     */
-    private void handleNotifications() {
-        System.out.println("Notifications clicked");
-        // TODO: Show notifications panel
-    }
-    
-    /**
-     * Handle profile button click
-     */
-    private void handleProfile() {
-        System.out.println("Profile clicked");
-        // TODO: Show profile menu
-    }
-    
-    /**
-     * Handle settings button click
-     */
-    private void handleSettings() {
-        System.out.println("Settings clicked");
-        // TODO: Show settings menu
+    private void handleAction(String action) {
+        if (actionHandler != null) {
+            actionHandler.accept(action);
+        } else {
+            System.out.println("Top nav action: " + action);
+        }
     }
     
     /**

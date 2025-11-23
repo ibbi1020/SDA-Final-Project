@@ -22,6 +22,8 @@ import com.block20.controllers.staff.StaffDashboardController;
 import com.block20.controllers.trainers.TrainerRegistryController;
 import com.block20.controllers.trainers.TrainingSessionsController;
 import com.block20.services.EquipmentService;
+import java.util.function.Consumer;
+import javafx.scene.control.Alert;
 import javafx.scene.control.Label;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.Priority;
@@ -38,21 +40,26 @@ public class StaffPortalView {
     private SidebarNavigation sidebar;
     private TopNavigation topNav;
     
+    private final String staffId;
     private final String staffName;
     private final String staffRole;
+    private final Consumer<String> logoutHandler;
     
     private final MemberService memberService; 
     private final EquipmentService equipmentService;
     private final ExportService exportService;
     private final TrainerService trainerService;
     private final TrainerScheduleService trainerScheduleService;
-    public StaffPortalView(String staffName,
+    public StaffPortalView(String staffId,
+                          String staffName,
                           String staffRole,
                           MemberService memberService,
                           EquipmentService equipmentService,
                           ExportService exportService,
                           TrainerService trainerService,
-                          TrainerScheduleService trainerScheduleService) {
+                          TrainerScheduleService trainerScheduleService,
+                          Consumer<String> logoutHandler) {
+        this.staffId = staffId;
         this.staffName = staffName;
         this.staffRole = staffRole;
         this.memberService = memberService;
@@ -60,6 +67,7 @@ public class StaffPortalView {
         this.exportService = exportService;
         this.trainerService = trainerService;
         this.trainerScheduleService = trainerScheduleService;
+        this.logoutHandler = logoutHandler;
         initializeView();
     }
     
@@ -71,7 +79,7 @@ public class StaffPortalView {
         rootView.getStyleClass().add("main-container");
         
         // Create top navigation
-        topNav = new TopNavigation(staffRole);
+        topNav = new TopNavigation(staffRole, this::handleTopNavAction);
         rootView.setTop(topNav.getView());
         
         // Create sidebar navigation
@@ -134,7 +142,11 @@ public class StaffPortalView {
     
     private void showDashboard() {
         // Pass BOTH services
-        StaffDashboardController dashboard = new StaffDashboardController(staffName, memberService, equipmentService);
+        StaffDashboardController dashboard = new StaffDashboardController(
+            staffName,
+            memberService,
+            equipmentService,
+            this::handleNavigation);
         setContent(dashboard);
     }
     /**
@@ -260,5 +272,39 @@ public class StaffPortalView {
      */
     public BorderPane getView() {
         return rootView;
+    }
+
+    private void handleTopNavAction(String action) {
+        switch (action) {
+            case "logo":
+                showDashboard();
+                break;
+            case "logout":
+                if (logoutHandler != null) {
+                    logoutHandler.accept(staffId);
+                } else {
+                    showTopNavMessage("Logout", "Logout handler not wired yet.");
+                }
+                break;
+            case "notifications":
+                showTopNavMessage("Notifications", "You're all caught up. We'll alert you when something needs attention.");
+                break;
+            case "profile":
+                showTopNavMessage("Profile", String.format("Signed in as %s (%s)", staffName, staffRole));
+                break;
+            case "settings":
+                showTopNavMessage("Settings", "Staff settings are under construction.");
+                break;
+            default:
+                showTopNavMessage("Action", "Feature coming soon.");
+        }
+    }
+
+    private void showTopNavMessage(String title, String message) {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle(title);
+        alert.setHeaderText(title);
+        alert.setContentText(message);
+        alert.showAndWait();
     }
 }

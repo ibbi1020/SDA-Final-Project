@@ -5,8 +5,12 @@
 package com.block20.views;
 
 import com.block20.controllers.member.*;
+import com.block20.services.MemberService;
+import com.block20.services.TrainerScheduleService;
+import com.block20.services.TrainerService;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Cursor;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.scene.text.Text;
@@ -24,11 +28,22 @@ public class MemberPortalView {
     private String memberId;
     private String memberName;
     private Consumer<String> onLogout;
+    private final MemberService memberService;
+    private final TrainerService trainerService;
+    private final TrainerScheduleService trainerScheduleService;
     
-    public MemberPortalView(String memberId, String memberName, Consumer<String> onLogout) {
+    public MemberPortalView(String memberId,
+                            String memberName,
+                            Consumer<String> onLogout,
+                            MemberService memberService,
+                            TrainerService trainerService,
+                            TrainerScheduleService trainerScheduleService) {
         this.memberId = memberId;
         this.memberName = memberName != null ? memberName : "Member";
         this.onLogout = onLogout;
+        this.memberService = memberService;
+        this.trainerService = trainerService;
+        this.trainerScheduleService = trainerScheduleService;
         initializeView();
     }
     
@@ -65,6 +80,7 @@ public class MemberPortalView {
         HBox logoArea = new HBox(12);
         logoArea.setAlignment(Pos.CENTER_LEFT);
         logoArea.getStyleClass().add("logo-area");
+        logoArea.setCursor(Cursor.HAND);
         
         Label logo = new Label("🏋️");
         logo.setStyle("-fx-font-size: 24px;");
@@ -78,6 +94,7 @@ public class MemberPortalView {
         memberBadge.setStyle("-fx-background-color: -fx-success-500;");
         
         logoArea.getChildren().addAll(logo, logoText, memberBadge);
+        logoArea.setOnMouseClicked(e -> handleNavigation("dashboard"));
         
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
@@ -216,7 +233,13 @@ public class MemberPortalView {
      * Show training sessions (book, view upcoming)
      */
     private void showTraining() {
-        MemberTrainingController trainingController = new MemberTrainingController(memberId, this::handleNavigation);
+        MemberTrainingController trainingController = new MemberTrainingController(
+                memberId,
+                memberName,
+                trainerService,
+                trainerScheduleService,
+                this::handleNavigation
+        );
         setContent(trainingController);
     }
     
@@ -240,7 +263,7 @@ public class MemberPortalView {
      * Show member profile
      */
     private void showProfile() {
-        MemberProfileController profileController = new MemberProfileController(memberId);
+        MemberProfileController profileController = new MemberProfileController(memberId, memberService);
         setContent(profileController);
     }
     

@@ -11,6 +11,7 @@ import javafx.scene.layout.*;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Random;
 import java.util.function.Consumer;
@@ -24,10 +25,16 @@ import java.util.function.Consumer;
  */
 public class MaintenanceScheduleController extends ScrollPane {
     
+    private static final double[] COLUMN_PERCENTAGES = {0.08, 0.18, 0.14, 0.10, 0.14, 0.16, 0.10, 0.10};
+
     private VBox contentContainer;
     private Consumer<String> navigationHandler;
     private VBox tableRows;
     private List<MaintenanceData> maintenanceList;
+    private FlowPane statsBarView;
+    private ToggleButton upcomingTab;
+    private ToggleButton overdueTab;
+    private ToggleButton completedTab;
     
     // Filter state
     private String currentFilter = "Upcoming";
@@ -64,14 +71,15 @@ public class MaintenanceScheduleController extends ScrollPane {
         
         // Filter tabs
         HBox filterTabs = createFilterTabs();
+        updateFilterTabLabels();
         
         // Stats bar
-        HBox statsBar = createStatsBar();
+        statsBarView = createStatsBar();
         
         // Maintenance table
         VBox tableSection = createMaintenanceTable();
         
-        contentContainer.getChildren().addAll(header, actionBar, filterTabs, statsBar, tableSection);
+        contentContainer.getChildren().addAll(header, actionBar, filterTabs, statsBarView, tableSection);
         
         // Set content
         setContent(contentContainer);
@@ -140,13 +148,13 @@ public class MaintenanceScheduleController extends ScrollPane {
         long completedCount = maintenanceList.stream().filter(m -> m.status.equals("Completed")).count();
         long overdueCount = maintenanceList.stream().filter(m -> m.status.equals("Overdue")).count();
         
-        ToggleButton upcomingTab = createFilterTab("Upcoming (" + upcomingCount + ")", filterGroup, true);
+        upcomingTab = createFilterTab("Upcoming (" + upcomingCount + ")", filterGroup, true);
         upcomingTab.setOnAction(e -> applyFilter("Upcoming"));
         
-        ToggleButton overdueTab = createFilterTab("Overdue (" + overdueCount + ")", filterGroup, false);
+        overdueTab = createFilterTab("Overdue (" + overdueCount + ")", filterGroup, false);
         overdueTab.setOnAction(e -> applyFilter("Overdue"));
         
-        ToggleButton completedTab = createFilterTab("Completed (" + completedCount + ")", filterGroup, false);
+        completedTab = createFilterTab("Completed (" + completedCount + ")", filterGroup, false);
         completedTab.setOnAction(e -> applyFilter("Completed"));
         
         tabsBox.getChildren().addAll(upcomingTab, overdueTab, completedTab);
@@ -164,33 +172,48 @@ public class MaintenanceScheduleController extends ScrollPane {
         tab.getStyleClass().add("filter-tab");
         return tab;
     }
+
+    private void updateFilterTabLabels() {
+        if (upcomingTab == null || overdueTab == null || completedTab == null) {
+            return;
+        }
+        long upcomingCount = maintenanceList.stream().filter(m -> "Scheduled".equals(m.status)).count();
+        long overdueCount = maintenanceList.stream().filter(m -> "Overdue".equals(m.status)).count();
+        long completedCount = maintenanceList.stream().filter(m -> "Completed".equals(m.status)).count();
+        upcomingTab.setText("Upcoming (" + upcomingCount + ")");
+        overdueTab.setText("Overdue (" + overdueCount + ")");
+        completedTab.setText("Completed (" + completedCount + ")");
+    }
     
     /**
      * Create stats bar
      */
-    private HBox createStatsBar() {
-        HBox statsBar = new HBox(20);
+    private FlowPane createStatsBar() {
+        FlowPane statsBar = new FlowPane(16, 16);
         statsBar.setAlignment(Pos.CENTER_LEFT);
-        statsBar.setPadding(new Insets(15));
+        statsBar.setPadding(new Insets(16));
         statsBar.getStyleClass().add("stats-bar");
+        statsBar.setPrefWrapLength(900);
+        statsBar.setMaxWidth(Double.MAX_VALUE);
         
         long todayCount = maintenanceList.stream()
-            .filter(m -> m.scheduledDate.equals(LocalDate.now()) && m.status.equals("Scheduled"))
+            .filter(m -> LocalDate.now().equals(m.scheduledDate) && "Scheduled".equals(m.status))
             .count();
         
         long thisWeekCount = maintenanceList.stream()
-            .filter(m -> !m.scheduledDate.isBefore(LocalDate.now()) && 
-                        !m.scheduledDate.isAfter(LocalDate.now().plusDays(7)) && 
-                        m.status.equals("Scheduled"))
+            .filter(m -> !m.scheduledDate.isBefore(LocalDate.now()) &&
+                        !m.scheduledDate.isAfter(LocalDate.now().plusDays(7)) &&
+                        "Scheduled".equals(m.status))
             .count();
         
-        long overdueCount = maintenanceList.stream().filter(m -> m.status.equals("Overdue")).count();
+        long overdueCount = maintenanceList.stream().filter(m -> "Overdue".equals(m.status)).count();
+        long totalScheduled = maintenanceList.stream().filter(m -> !"Completed".equals(m.status)).count();
         
         statsBar.getChildren().addAll(
             createStatItem("Today's Tasks", String.valueOf(todayCount), "#3B82F6"),
             createStatItem("This Week", String.valueOf(thisWeekCount), "#10B981"),
             createStatItem("Overdue", String.valueOf(overdueCount), "#EF4444"),
-            createStatItem("Total Scheduled", String.valueOf(maintenanceList.size()), "#8B5CF6")
+            createStatItem("Active Schedule", String.valueOf(totalScheduled), "#8B5CF6")
         );
         
         return statsBar;
@@ -200,10 +223,13 @@ public class MaintenanceScheduleController extends ScrollPane {
      * Create stat item
      */
     private VBox createStatItem(String label, String value, String color) {
-        VBox statBox = new VBox(5);
+        VBox statBox = new VBox(6);
         statBox.setAlignment(Pos.CENTER);
-        statBox.setPadding(new Insets(10));
+        statBox.setPadding(new Insets(14));
         statBox.getStyleClass().add("stat-item");
+        statBox.setMinWidth(180);
+        statBox.setPrefWidth(220);
+        statBox.setMaxWidth(Double.MAX_VALUE);
         
         Label valueLabel = new Label(value);
         valueLabel.setStyle("-fx-font-size: 24px; -fx-font-weight: bold; -fx-text-fill: " + color + ";");
@@ -223,149 +249,153 @@ public class MaintenanceScheduleController extends ScrollPane {
         VBox tableContainer = new VBox(10);
         tableContainer.getStyleClass().add("table-container");
         
-        // Table header
-        HBox tableHeader = new HBox();
+        GridPane tableHeader = new GridPane();
         tableHeader.getStyleClass().add("table-header");
-        tableHeader.setPadding(new Insets(10));
+        tableHeader.setPadding(new Insets(12));
+        tableHeader.setHgap(12);
+        applyTableColumnConstraints(tableHeader);
         
-        Label idCol = new Label("Task ID");
-        idCol.setPrefWidth(100);
-        idCol.getStyleClass().add("table-header-cell");
+        addHeaderCell(tableHeader, "Task ID", 0);
+        addHeaderCell(tableHeader, "Equipment", 1);
+        addHeaderCell(tableHeader, "Maintenance Type", 2);
+        addHeaderCell(tableHeader, "Priority", 3);
+        addHeaderCell(tableHeader, "Scheduled Date", 4);
+        addHeaderCell(tableHeader, "Technician", 5);
+        addHeaderCell(tableHeader, "Status", 6);
+        addHeaderCell(tableHeader, "Actions", 7);
         
-        Label equipmentCol = new Label("Equipment");
-        equipmentCol.setPrefWidth(200);
-        equipmentCol.getStyleClass().add("table-header-cell");
-        
-        Label typeCol = new Label("Maintenance Type");
-        typeCol.setPrefWidth(160);
-        typeCol.getStyleClass().add("table-header-cell");
-        
-        Label priorityCol = new Label("Priority");
-        priorityCol.setPrefWidth(100);
-        priorityCol.getStyleClass().add("table-header-cell");
-        
-        Label dateCol = new Label("Scheduled Date");
-        dateCol.setPrefWidth(130);
-        dateCol.getStyleClass().add("table-header-cell");
-        
-        Label technicianCol = new Label("Technician");
-        technicianCol.setPrefWidth(150);
-        technicianCol.getStyleClass().add("table-header-cell");
-        
-        Label statusCol = new Label("Status");
-        statusCol.setPrefWidth(120);
-        statusCol.getStyleClass().add("table-header-cell");
-        
-        Label actionCol = new Label("Actions");
-        actionCol.setPrefWidth(150);
-        actionCol.getStyleClass().add("table-header-cell");
-        
-        tableHeader.getChildren().addAll(idCol, equipmentCol, typeCol, priorityCol, dateCol, technicianCol, statusCol, actionCol);
-        
-        // Table rows
         ScrollPane scrollPane = new ScrollPane();
         scrollPane.setFitToWidth(true);
         scrollPane.getStyleClass().add("table-scroll");
         
         tableRows = new VBox(5);
         tableRows.setPadding(new Insets(10));
-        
-        for (MaintenanceData maintenance : maintenanceList) {
-            tableRows.getChildren().add(createTableRow(maintenance));
-        }
+        tableRows.setFillWidth(true);
         
         scrollPane.setContent(tableRows);
+        refreshTableRows();
         
         tableContainer.getChildren().addAll(tableHeader, scrollPane);
         VBox.setVgrow(scrollPane, Priority.ALWAYS);
         
         return tableContainer;
     }
-    
-    /**
-     * Create table row
-     */
-    private HBox createTableRow(MaintenanceData maintenance) {
-        HBox row = new HBox();
+
+    private void addHeaderCell(GridPane header, String text, int column) {
+        Label label = new Label(text);
+        label.getStyleClass().add("table-header-cell");
+        header.add(label, column, 0);
+        GridPane.setHgrow(label, Priority.ALWAYS);
+    }
+
+    private GridPane createTableRow(MaintenanceData maintenance) {
+        GridPane row = new GridPane();
         row.getStyleClass().add("table-row");
-        row.setPadding(new Insets(10));
+        row.setPadding(new Insets(12));
+        row.setHgap(12);
         row.setAlignment(Pos.CENTER_LEFT);
+        applyTableColumnConstraints(row);
         
-        // Task ID
         Label idLabel = new Label(maintenance.taskId);
-        idLabel.setPrefWidth(100);
         idLabel.setStyle("-fx-font-weight: 500;");
+        row.add(idLabel, 0, 0);
         
-        // Equipment
         Label equipmentLabel = new Label(maintenance.equipmentName);
-        equipmentLabel.setPrefWidth(200);
+        row.add(equipmentLabel, 1, 0);
         
-        // Type
         Label typeLabel = new Label(maintenance.maintenanceType);
-        typeLabel.setPrefWidth(160);
+        row.add(typeLabel, 2, 0);
         
-        // Priority badge
         Label priorityBadge = new Label(maintenance.priority);
-        priorityBadge.setPrefWidth(100);
         priorityBadge.getStyleClass().add("badge");
         switch (maintenance.priority) {
-            case "Urgent":
-                priorityBadge.getStyleClass().add("badge-error");
-                break;
-            case "Normal":
-                priorityBadge.getStyleClass().add("badge-warning");
-                break;
-            case "Routine":
-                priorityBadge.getStyleClass().add("badge-info");
-                break;
+            case "Urgent" -> priorityBadge.getStyleClass().add("badge-error");
+            case "Normal" -> priorityBadge.getStyleClass().add("badge-warning");
+            default -> priorityBadge.getStyleClass().add("badge-info");
         }
+        row.add(priorityBadge, 3, 0);
         
-        // Scheduled Date
         Label dateLabel = new Label(maintenance.scheduledDate.format(DateTimeFormatter.ofPattern("MMM dd, yyyy")));
-        dateLabel.setPrefWidth(130);
+        row.add(dateLabel, 4, 0);
         
-        // Technician
         Label technicianLabel = new Label(maintenance.technician);
-        technicianLabel.setPrefWidth(150);
+        row.add(technicianLabel, 5, 0);
         
-        // Status badge
         Label statusBadge = new Label(maintenance.status);
-        statusBadge.setPrefWidth(120);
         statusBadge.getStyleClass().add("badge");
         switch (maintenance.status) {
-            case "Scheduled":
-                statusBadge.getStyleClass().add("badge-info");
-                break;
-            case "Completed":
-                statusBadge.getStyleClass().add("badge-success");
-                break;
-            case "Overdue":
-                statusBadge.getStyleClass().add("badge-error");
-                break;
+            case "Scheduled" -> statusBadge.getStyleClass().add("badge-info");
+            case "Completed" -> statusBadge.getStyleClass().add("badge-success");
+            case "Overdue" -> statusBadge.getStyleClass().add("badge-error");
+            default -> statusBadge.getStyleClass().add("badge-warning");
         }
+        row.add(statusBadge, 6, 0);
         
-        // Action buttons
         HBox actionBox = new HBox(8);
-        actionBox.setPrefWidth(150);
         actionBox.setAlignment(Pos.CENTER_LEFT);
+        actionBox.setFillHeight(false);
         
-        if (maintenance.status.equals("Scheduled") || maintenance.status.equals("Overdue")) {
+        if ("Scheduled".equals(maintenance.status) || "Overdue".equals(maintenance.status)) {
             Button completeButton = new Button("Complete");
             completeButton.getStyleClass().add("btn-primary-small");
             completeButton.setOnAction(e -> completeMaintenance(maintenance));
-            
             actionBox.getChildren().add(completeButton);
         } else {
             Button viewButton = new Button("View");
             viewButton.getStyleClass().add("btn-secondary-small");
             viewButton.setOnAction(e -> viewMaintenance(maintenance));
-            
             actionBox.getChildren().add(viewButton);
         }
-        
-        row.getChildren().addAll(idLabel, equipmentLabel, typeLabel, priorityBadge, dateLabel, technicianLabel, statusBadge, actionBox);
+        row.add(actionBox, 7, 0);
         
         return row;
+    }
+
+    private void applyTableColumnConstraints(GridPane grid) {
+        if (!grid.getColumnConstraints().isEmpty()) {
+            return;
+        }
+        for (double percent : COLUMN_PERCENTAGES) {
+            ColumnConstraints column = new ColumnConstraints();
+            column.setPercentWidth(percent * 100);
+            column.setHgrow(Priority.ALWAYS);
+            grid.getColumnConstraints().add(column);
+        }
+    }
+
+    private void refreshTableRows() {
+        if (tableRows == null) {
+            return;
+        }
+        tableRows.getChildren().clear();
+        maintenanceList.stream()
+            .filter(this::matchesCurrentFilter)
+            .sorted(Comparator
+                .comparing((MaintenanceData m) -> m.scheduledDate)
+                .thenComparing(m -> m.taskId))
+            .map(this::createTableRow)
+            .forEach(tableRows.getChildren()::add);
+    }
+
+    private boolean matchesCurrentFilter(MaintenanceData maintenance) {
+        return switch (currentFilter) {
+            case "Overdue" -> "Overdue".equals(maintenance.status);
+            case "Completed" -> "Completed".equals(maintenance.status);
+            case "Upcoming" -> "Scheduled".equals(maintenance.status);
+            default -> true;
+        };
+    }
+
+    private void refreshStatsBar() {
+        if (contentContainer == null || statsBarView == null) {
+            return;
+        }
+        FlowPane updatedBar = createStatsBar();
+        int index = contentContainer.getChildren().indexOf(statsBarView);
+        if (index >= 0) {
+            contentContainer.getChildren().set(index, updatedBar);
+            statsBarView = updatedBar;
+        }
     }
     
     /**
@@ -373,8 +403,7 @@ public class MaintenanceScheduleController extends ScrollPane {
      */
     private void applyFilter(String filter) {
         currentFilter = filter;
-        System.out.println("Filter applied: " + filter);
-        // In real implementation, this would refresh the table with filtered data
+        refreshTableRows();
     }
     
     // ==================== DIALOG VIEWS ====================
@@ -508,7 +537,9 @@ public class MaintenanceScheduleController extends ScrollPane {
                 newMaintenance.status = "Scheduled";
                 
                 maintenanceList.add(newMaintenance);
-                tableRows.getChildren().add(createTableRow(newMaintenance));
+                refreshTableRows();
+                refreshStatsBar();
+                updateFilterTabLabels();
                 
                 // Show success
                 Alert success = new Alert(Alert.AlertType.INFORMATION);
@@ -602,6 +633,10 @@ public class MaintenanceScheduleController extends ScrollPane {
                 success.setHeaderText("Maintenance Task Completed");
                 success.setContentText("Task ID: " + maintenance.taskId + " has been marked as completed.");
                 success.showAndWait();
+
+                refreshTableRows();
+                refreshStatsBar();
+                updateFilterTabLabels();
             }
         });
     }
