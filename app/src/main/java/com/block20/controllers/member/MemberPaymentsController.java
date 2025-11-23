@@ -17,11 +17,13 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 public class MemberPaymentsController extends ScrollPane {
+    private static final String STAT_VALUE_STYLE = "-fx-font-size: 28px; -fx-font-weight: 700;";
     private final PaymentService paymentService;
     private final String memberId;
     private VBox contentContainer;
     private Label balanceValue;
     private Label nextDueValue;
+    private Label overdueValue;
     private VBox historyList;
     private VBox plansList;
     private List<PaymentReceipt> paymentHistory = List.of();
@@ -82,6 +84,7 @@ public class MemberPaymentsController extends ScrollPane {
         stats.setAlignment(Pos.CENTER_LEFT);
         balanceValue = createStatBlock(stats, "Outstanding Balance", "$0.00");
         nextDueValue = createStatBlock(stats, "Next Installment Due", "—");
+        overdueValue = createStatBlock(stats, "Overdue Installments", "0 • $0.00");
         card.getChildren().addAll(heading, stats);
         return card;
     }
@@ -90,7 +93,7 @@ public class MemberPaymentsController extends ScrollPane {
         VBox block = new VBox(6);
         Label value = new Label(defaultValue);
         value.getStyleClass().add("stat-value");
-        value.setStyle("-fx-font-size: 28px; -fx-font-weight: 700;");
+        value.setStyle(STAT_VALUE_STYLE);
         Label lbl = new Label(label);
         lbl.getStyleClass().add("text-muted");
         block.getChildren().addAll(value, lbl);
@@ -145,6 +148,11 @@ public class MemberPaymentsController extends ScrollPane {
         double outstanding = paymentService.getOutstandingBalance(memberId);
         balanceValue.setText(String.format("$%.2f", outstanding));
         nextDueValue.setText(getNextInstallmentText());
+        OverdueSummary overdue = calculateOverdueSummary();
+        overdueValue.setText(String.format("%d • $%.2f", overdue.count, overdue.amount));
+        overdueValue.setStyle(overdue.count > 0
+            ? STAT_VALUE_STYLE + " -fx-text-fill: #B91C1C;"
+            : STAT_VALUE_STYLE);
     }
     
     private String getNextInstallmentText() {
@@ -162,6 +170,21 @@ public class MemberPaymentsController extends ScrollPane {
             return "All clear";
         }
         return String.format("%s ($%.2f)", nextDue.format(DateTimeFormatter.ofPattern("MMM dd")), nextAmount);
+    }
+
+    private OverdueSummary calculateOverdueSummary() {
+        LocalDate today = LocalDate.now();
+        int count = 0;
+        double amount = 0.0;
+        for (PaymentPlan plan : activePlans) {
+            for (PaymentPlan.Installment installment : plan.getInstallments()) {
+                if (!installment.isPaid() && installment.getDueDate().isBefore(today)) {
+                    count++;
+                    amount += installment.getAmount();
+                }
+            }
+        }
+        return new OverdueSummary(count, amount);
     }
     
     private void populateHistory() {
@@ -214,12 +237,21 @@ public class MemberPaymentsController extends ScrollPane {
     }
     
     private VBox createPlanCard(PaymentPlan plan) {
+        LocalDate today = LocalDate.now();
         VBox card = new VBox(12);
         card.setStyle("-fx-border-color: #E2E8F0; -fx-border-radius: 8; -fx-padding: 16; -fx-background-radius: 8; -fx-background-color: white;");
         Text planTitle = new Text(String.format("Plan %s", plan.getPlanId()));
         planTitle.getStyleClass().add("text-h5");
-        Label status = new Label(plan.getStatus());
+        boolean hasOverdue = plan.getOverdueInstallments(today).size() > 0;
+        Label status = new Label(hasOverdue ? "Overdue" : plan.getStatus());
         status.getStyleClass().add("badge");
+        if ("COMPLETED".equalsIgnoreCase(plan.getStatus())) {
+            status.getStyleClass().add("badge-success");
+        } else if (hasOverdue) {
+            status.getStyleClass().add("badge-error");
+        } else {
+            status.getStyleClass().add("badge-info");
+        }
         HBox header = new HBox(12, planTitle, status);
         header.setAlignment(Pos.CENTER_LEFT);
         Label created = new Label("Created " + plan.getCreatedOn().format(DateTimeFormatter.ofPattern("MMM dd, yyyy")));
@@ -228,15 +260,25 @@ public class MemberPaymentsController extends ScrollPane {
         remaining.setStyle("-fx-font-weight: 600;");
         VBox installmentList = new VBox(6);
         for (PaymentPlan.Installment installment : plan.getInstallments()) {
+            boolean overdue = !installment.isPaid() && installment.getDueDate().isBefore(today);
             HBox line = new HBox(8);
             Text due = new Text(installment.getDueDate().format(DateTimeFormatter.ofPattern("MMM dd")));
             due.getStyleClass().add("text-body");
+            if (overdue) {
+                due.setStyle("-fx-font-weight: 600; -fx-text-fill: #B91C1C;");
+            }
             Region spacer = new Region();
             HBox.setHgrow(spacer, Priority.ALWAYS);
             Text amount = new Text(String.format("$%.2f", installment.getAmount()));
-            Label badge = new Label(installment.isPaid() ? "Paid" : "Due");
+            Label badge = new Label(installment.isPaid() ? "Paid" : overdue ? "Overdue" : "Scheduled");
             badge.getStyleClass().add("badge");
-            badge.getStyleClass().add(installment.isPaid() ? "badge-success" : "badge-warning");
+            if (installment.isPaid()) {
+                badge.getStyleClass().add("badge-success");
+            } else if (overdue) {
+                badge.getStyleClass().add("badge-error");
+            } else {
+                badge.getStyleClass().add("badge-warning");
+            }
             line.getChildren().addAll(due, spacer, amount, badge);
             installmentList.getChildren().add(line);
         }
@@ -311,5 +353,15 @@ public class MemberPaymentsController extends ScrollPane {
         alert.setHeaderText(null);
         alert.setContentText(message);
         alert.showAndWait();
+    }
+
+    private static class OverdueSummary {
+        private final int count;
+        private final double amount;
+
+        private OverdueSummary(int count, double amount) {
+            this.count = count;
+            this.amount = amount;
+        }
     }
 }
