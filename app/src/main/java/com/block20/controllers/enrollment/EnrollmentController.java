@@ -1,5 +1,10 @@
 package com.block20.controllers.enrollment;
 
+import com.block20.models.Member;
+import com.block20.models.PaymentReceipt;
+import com.block20.models.PaymentRequest;
+import com.block20.services.MemberService;
+import com.block20.services.PaymentService;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
@@ -26,13 +31,16 @@ public class EnrollmentController extends ScrollPane {
     private EnrollmentData enrollmentData;
     private Consumer<String> navigationHandler;
     
-// NEW: Service Dependency
-    private com.block20.services.MemberService memberService;
+    private MemberService memberService;
+    private PaymentService paymentService;
     
     // UPDATED: Constructor accepts MemberService
-    public EnrollmentController(Consumer<String> navigationHandler, com.block20.services.MemberService memberService) {
+    public EnrollmentController(Consumer<String> navigationHandler,
+                                MemberService memberService,
+                                PaymentService paymentService) {
         this.navigationHandler = navigationHandler;
         this.memberService = memberService; // Save it
+        this.paymentService = paymentService;
         this.enrollmentData = new EnrollmentData();
         initialize();
     }
@@ -910,6 +918,10 @@ private void nextStep() {
                     showAlert("Please enter email address");
                     return false;
                 }
+                if (memberService != null && emailExists(enrollmentData.email.trim())) {
+                    showAlert("A member with this email already exists. Please use Member Registry to manage existing profiles.");
+                    return false;
+                }
                 if (enrollmentData.phone == null || enrollmentData.phone.trim().isEmpty()) {
                     showAlert("Please enter phone number");
                     return false;
@@ -941,9 +953,13 @@ private void nextStep() {
                         return false;
                     }
                 }
-                // Simulate payment processing
-                processPayment();
-                return true;
+                try {
+                    processPayment();
+                    return true;
+                } catch (Exception ex) {
+                    showAlert("Payment failed: " + ex.getMessage());
+                    return false;
+                }
                 
             default:
                 return true;
@@ -951,19 +967,67 @@ private void nextStep() {
     }
 
     private void processPayment() {
-        // Simulate payment processing
-        System.out.println("Processing payment...");
-        System.out.println("Payment Method: " + enrollmentData.paymentMethod);
-        System.out.println("Amount: $" + String.format("%.2f", enrollmentData.totalAmount));
-        
-        // In real implementation, this would call payment gateway
-        enrollmentData.paymentStatus = "Completed";
-        enrollmentData.transactionId = "TXN" + System.currentTimeMillis();
+        if (paymentService == null) {
+            System.out.println("Payment service unavailable. Simulating payment.");
+            ensureMemberAccount();
+            enrollmentData.paymentStatus = "Simulated";
+            enrollmentData.transactionId = "SIM" + System.currentTimeMillis();
+            return;
+        }
+
+        boolean memberCreatedThisCall = false;
+        try {
+            memberCreatedThisCall = ensureMemberAccount();
+            double subtotal = enrollmentData.planPrice > 0 ? enrollmentData.planPrice : enrollmentData.totalAmount;
+            double taxAmount = Math.max(0.0, enrollmentData.totalAmount - subtotal);
+            PaymentRequest.CardDetails cardDetails = null;
+            if ("Card".equalsIgnoreCase(enrollmentData.paymentMethod)) {
+                cardDetails = new PaymentRequest.CardDetails(
+                    sanitizeCardNumber(enrollmentData.cardNumber),
+                    enrollmentData.cardholderName,
+                    enrollmentData.cardExpiry,
+                    enrollmentData.cardCVV
+                );
+            }
+
+            PaymentRequest request = new PaymentRequest(
+                enrollmentData.memberId,
+                subtotal,
+                taxAmount,
+                enrollmentData.selectedPlan + " Enrollment",
+                enrollmentData.paymentMethod,
+                cardDetails
+            );
+
+            PaymentReceipt receipt = paymentService.processPayment(request);
+            enrollmentData.paymentStatus = receipt.getStatus();
+            enrollmentData.transactionId = receipt.getTransactionId();
+        } catch (Exception ex) {
+            if (memberCreatedThisCall && enrollmentData.memberId != null && memberService != null) {
+                memberService.deleteMember(enrollmentData.memberId);
+                enrollmentData.memberId = null;
+            }
+            throw ex;
+        }
     }
 
-private void saveEnrollmentToBackend() {
-        // 1. Call the Service (The Brain)
-        var newMember = memberService.registerMember(
+    private boolean emailExists(String email) {
+        if (email == null || email.isBlank() || memberService == null) {
+            return false;
+        }
+        String normalized = email.trim().toLowerCase();
+        return memberService.getAllMembers().stream()
+            .anyMatch(member -> member.getEmail() != null && member.getEmail().toLowerCase().equals(normalized));
+    }
+
+    private boolean ensureMemberAccount() {
+        if (memberService == null) {
+            return false;
+        }
+        if (enrollmentData.memberId != null) {
+            return false;
+        }
+        Member newMember = memberService.registerMember(
             enrollmentData.fullName,
             enrollmentData.email,
             enrollmentData.phone,
@@ -973,11 +1037,27 @@ private void saveEnrollmentToBackend() {
             enrollmentData.emergencyContactPhone,
             enrollmentData.emergencyRelationship
         );
-
-        // 2. Update our data object with the REAL ID from the database
         enrollmentData.memberId = newMember.getMemberId();
-        
-        System.out.println("Backend Success! Created Member: " + newMember.getMemberId());
+        return true;
+    }
+
+    private String sanitizeCardNumber(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        return raw.replaceAll("[^0-9]", "");
+    }
+
+    private void saveEnrollmentToBackend() {
+        if (memberService == null) {
+            return;
+        }
+        boolean created = ensureMemberAccount();
+        if (created) {
+            System.out.println("Backend Success! Created Member: " + enrollmentData.memberId);
+        } else {
+            System.out.println("Member already recorded. Skipping duplicate registration.");
+        }
     }
 
     private void handleCancel() {

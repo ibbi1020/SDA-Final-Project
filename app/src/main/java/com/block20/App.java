@@ -8,6 +8,8 @@ package com.block20;
 import com.block20.repositories.*;
 import com.block20.repositories.impl.*;
 import com.block20.services.*;
+import com.block20.services.PaymentGateway;
+import com.block20.services.PaymentService;
 import com.block20.services.impl.*;
 import com.block20.views.LoginGatewayView;
 import com.block20.views.MemberPortalView;
@@ -15,6 +17,8 @@ import com.block20.views.StaffPortalView;
 import javafx.application.Application;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
+import com.block20.services.impl.MockPaymentGateway;
+import com.block20.services.impl.PaymentServiceImpl;
 
 public class App extends Application {
     
@@ -27,6 +31,7 @@ public class App extends Application {
     private ExportService exportService;
     private TrainerService trainerService;
     private TrainerScheduleService trainerScheduleService;
+    private PaymentService paymentService;
     
     @Override
     public void start(Stage primaryStage) {
@@ -42,6 +47,7 @@ public class App extends Application {
         TransactionRepository transactionRepo = new TransactionRepositoryImpl();
         EquipmentRepository equipmentRepo = new EquipmentRepositoryImpl();
         TrainerRepository trainerRepo = new TrainerRepositoryImpl();
+        PaymentPlanRepository paymentPlanRepository = new PaymentPlanRepositoryImpl();
         AuditRepository auditRepo = new AuditRepositoryImpl();
         TrainerAvailabilityRepository trainerAvailabilityRepo = new TrainerAvailabilityRepositoryImpl();
         TrainingSessionRepository trainingSessionRepo = new TrainingSessionRepositoryImpl();
@@ -50,9 +56,11 @@ public class App extends Application {
         AuditService auditService = new AuditServiceImpl(auditRepo);
         NotificationService notificationService = new NotificationServiceImpl();
         this.exportService = new ExportServiceImpl(); 
+        PaymentGateway paymentGateway = new MockPaymentGateway();
 
         // 3. Inject Dependencies into Main Services
         this.memberService = new MemberServiceImpl(memberRepo, attendanceRepo, transactionRepo, auditService, notificationService);
+        this.paymentService = new PaymentServiceImpl(transactionRepo, paymentPlanRepository, paymentGateway);
         this.equipmentService = new EquipmentServiceImpl(equipmentRepo);
         this.trainerService = new TrainerServiceImpl(trainerRepo);
         this.trainerScheduleService = new TrainerScheduleServiceImpl(trainerService, trainerAvailabilityRepo, trainingSessionRepo);
@@ -143,6 +151,7 @@ public class App extends Application {
             memberName,
             this::handleLogout,
             this.memberService,
+            this.paymentService,
             this.trainerService,
             this.trainerScheduleService
         );
@@ -162,6 +171,7 @@ public class App extends Application {
             staffName, 
             staffRole, 
             this.memberService, 
+            this.paymentService,
             this.equipmentService,
             this.exportService,
             this.trainerService,

@@ -6,6 +6,7 @@ package com.block20.views;
 
 import com.block20.controllers.member.*;
 import com.block20.services.MemberService;
+import com.block20.services.PaymentService;
 import com.block20.services.TrainerScheduleService;
 import com.block20.services.TrainerService;
 import javafx.geometry.Insets;
@@ -29,6 +30,7 @@ public class MemberPortalView {
     private String memberName;
     private Consumer<String> onLogout;
     private final MemberService memberService;
+    private final PaymentService paymentService;
     private final TrainerService trainerService;
     private final TrainerScheduleService trainerScheduleService;
     
@@ -36,12 +38,14 @@ public class MemberPortalView {
                             String memberName,
                             Consumer<String> onLogout,
                             MemberService memberService,
+                            PaymentService paymentService,
                             TrainerService trainerService,
                             TrainerScheduleService trainerScheduleService) {
         this.memberId = memberId;
         this.memberName = memberName != null ? memberName : "Member";
         this.onLogout = onLogout;
         this.memberService = memberService;
+        this.paymentService = paymentService;
         this.trainerService = trainerService;
         this.trainerScheduleService = trainerScheduleService;
         initializeView();
@@ -247,7 +251,7 @@ public class MemberPortalView {
      * Show payments and billing
      */
     private void showPayments() {
-        MemberPaymentsController paymentsController = new MemberPaymentsController(memberId);
+        MemberPaymentsController paymentsController = new MemberPaymentsController(memberId, paymentService);
         setContent(paymentsController);
     }
     

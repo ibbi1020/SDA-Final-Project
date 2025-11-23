@@ -6,6 +6,7 @@ package com.block20.views;
 
 import com.block20.services.MemberService;
 import com.block20.services.ExportService;
+import com.block20.services.PaymentService;
 import com.block20.services.TrainerScheduleService;
 import com.block20.services.TrainerService;
 import com.block20.components.SidebarNavigation;
@@ -46,6 +47,7 @@ public class StaffPortalView {
     private final Consumer<String> logoutHandler;
     
     private final MemberService memberService; 
+    private final PaymentService paymentService;
     private final EquipmentService equipmentService;
     private final ExportService exportService;
     private final TrainerService trainerService;
@@ -54,6 +56,7 @@ public class StaffPortalView {
                           String staffName,
                           String staffRole,
                           MemberService memberService,
+                          PaymentService paymentService,
                           EquipmentService equipmentService,
                           ExportService exportService,
                           TrainerService trainerService,
@@ -63,6 +66,7 @@ public class StaffPortalView {
         this.staffName = staffName;
         this.staffRole = staffRole;
         this.memberService = memberService;
+        this.paymentService = paymentService;
         this.equipmentService = equipmentService;
         this.exportService = exportService;
         this.trainerService = trainerService;
@@ -172,7 +176,11 @@ public class StaffPortalView {
      */
     private void showEnrollmentNew() {
         // PASS 'this.memberService' into the constructor
-        EnrollmentController enrollmentController = new EnrollmentController(this::handleNavigation, this.memberService);
+        EnrollmentController enrollmentController = new EnrollmentController(
+            this::handleNavigation,
+            this.memberService,
+            this.paymentService
+        );
         setContent(enrollmentController);
     }
     
