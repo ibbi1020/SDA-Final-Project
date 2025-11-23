@@ -171,7 +171,7 @@ public class MemberServiceImpl implements MemberService {
     }
 
     @Override
-    public void changeMemberStatus(String id, String newStatus) {
+    public void changeMemberStatus(String id, String newStatus, String reason) {
         Member m = memberRepo.findAll().stream()
             .filter(member -> member.getMemberId().equals(id))
             .findFirst()
@@ -179,7 +179,11 @@ public class MemberServiceImpl implements MemberService {
             
         m.setStatus(newStatus);
         memberRepo.save(m);
-        auditService.logAction(id, "STATUS_CHANGE", "Status changed" );
+        StringBuilder details = new StringBuilder("Status changed to ").append(newStatus);
+        if (reason != null && !reason.isBlank()) {
+            details.append(" | Reason: ").append(reason.trim());
+        }
+        auditService.logAction(id, "STATUS_CHANGE", details.toString());
         if ("Suspended".equalsIgnoreCase(newStatus)) {
             notificationService.sendSecurityAlert(m.getPhone(), m.getFullName(), "Suspended");
         }

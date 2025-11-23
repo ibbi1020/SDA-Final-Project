@@ -6,11 +6,13 @@ import com.block20.models.AuditLog;
 
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.scene.text.Text;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.List;
 
@@ -22,6 +24,7 @@ public class MemberRegistryController extends ScrollPane {
     private TextField searchField;
     private ComboBox<String> statusFilter;
     private ComboBox<String> planFilter;
+    private HBox statsBar;
     private Consumer<String> navigationHandler;
 
     // Service Dependency
@@ -64,6 +67,7 @@ public class MemberRegistryController extends ScrollPane {
             allMembers.addAll(memberService.getAllMembers());
         }
         filterMembers();
+        refreshStatsBar();
     }
 
     // --- 1. PROFILE VIEW LOGIC (The missing part) ---
@@ -143,9 +147,10 @@ VBox historyBox = new VBox(8);
         Button editBtn = new Button("Edit");
         editBtn.setOnAction(e -> showEditDialog(member));
         
-        Button statusBtn = new Button(member.getStatus().equals("Suspended") ? "Activate" : "Suspend");
+        String nextStatus = member.getStatus().equalsIgnoreCase("Suspended") ? "Active" : "Suspended";
+        Button statusBtn = new Button(nextStatus.equalsIgnoreCase("Active") ? "Activate" : "Suspend");
         statusBtn.getStyleClass().add("btn-warning");
-        statusBtn.setOnAction(e -> toggleMemberStatus(member));
+        statusBtn.setOnAction(e -> changeMemberStatus(member, nextStatus, !"Active".equalsIgnoreCase(nextStatus)));
         
         Button deleteBtn = new Button("Delete");
         deleteBtn.getStyleClass().add("btn-danger");
@@ -198,28 +203,103 @@ VBox historyBox = new VBox(8);
         });
     }
 
-private void toggleMemberStatus(Member member) {
-        String newStatus = member.getStatus().equals("Suspended") ? "Active" : "Suspended";
-        String message = "Member is now " + newStatus;
+    private void showCreateMemberDialog() {
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Create New Member");
+        dialog.setHeaderText("Add a member in three quick steps");
 
-        // --- NEW SECURITY LOGIC ---
-        // If we are suspending them, force a check-out if they are currently in the gym
-        if ("Suspended".equals(newStatus)) {
-            if (memberService.isMemberCheckedIn(member.getMemberId())) {
+        ButtonType createBtn = new ButtonType("Create Member", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(createBtn, ButtonType.CANCEL);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(12);
+        grid.setVgap(12);
+        grid.setPadding(new Insets(20));
+
+        TextField nameField = new TextField();
+        nameField.setPromptText("Full name");
+        TextField emailField = new TextField();
+        emailField.setPromptText("email@example.com");
+        TextField phoneField = new TextField();
+        phoneField.setPromptText("555-123-0101");
+
+        ComboBox<String> planField = new ComboBox<>();
+        planField.getItems().addAll("Basic", "Premium", "Elite", "Student");
+        planField.getSelectionModel().selectFirst();
+        planField.setPrefWidth(220);
+
+        grid.add(new Label("Full Name"), 0, 0);
+        grid.add(nameField, 1, 0);
+        grid.add(new Label("Email"), 0, 1);
+        grid.add(emailField, 1, 1);
+        grid.add(new Label("Phone"), 0, 2);
+        grid.add(phoneField, 1, 2);
+        grid.add(new Label("Membership Plan"), 0, 3);
+        grid.add(planField, 1, 3);
+
+        dialog.getDialogPane().setContent(grid);
+
+        Node submitButton = dialog.getDialogPane().lookupButton(createBtn);
+        submitButton.disableProperty().bind(
+            nameField.textProperty().isEmpty()
+                .or(emailField.textProperty().isEmpty())
+                .or(phoneField.textProperty().isEmpty())
+        );
+
+        dialog.showAndWait().ifPresent(result -> {
+            if (result == createBtn) {
                 try {
-                    memberService.checkOutMember(member.getMemberId());
-                    message += "\n(Auto-checked out from facility)";
-                    System.out.println("Security: Force checked-out " + member.getFullName() + " due to suspension.");
-                } catch (Exception e) {
-                    System.err.println("Failed to force checkout: " + e.getMessage());
+                    Member created = memberService.registerMember(
+                        nameField.getText().trim(),
+                        emailField.getText().trim(),
+                        phoneField.getText().trim(),
+                        planField.getValue()
+                    );
+                    loadMembersFromBackend();
+                    showAlert("Member Created", created.getFullName() + " has been added to the registry.");
+                } catch (Exception ex) {
+                    showAlert("Unable to create member", ex.getMessage());
                 }
             }
-        }
-        // ---------------------------
+        });
+    }
 
-        memberService.changeMemberStatus(member.getMemberId(), newStatus);
-        loadMembersFromBackend(); // Refresh the table to show Red badge
-        showAlert("Status Updated", message);
+    private void changeMemberStatus(Member member, String targetStatus, boolean requireReason) {
+        if (member.getStatus() != null && member.getStatus().equalsIgnoreCase(targetStatus)) {
+            showAlert("No Change", member.getFullName() + " is already " + targetStatus + ".");
+            return;
+        }
+
+        String reason = "Manual update";
+        if (requireReason) {
+            TextInputDialog dialog = new TextInputDialog();
+            dialog.setTitle("Reason Required");
+            dialog.setHeaderText("Provide a quick note for setting status to " + targetStatus);
+            dialog.setContentText("Reason:");
+            Optional<String> result = dialog.showAndWait();
+            if (result.isEmpty()) {
+                return;
+            }
+            reason = result.get().isBlank() ? "Not provided" : result.get().trim();
+        }
+
+        boolean removedAccess = !"Active".equalsIgnoreCase(targetStatus);
+        if (removedAccess && memberService.isMemberCheckedIn(member.getMemberId())) {
+            try {
+                memberService.checkOutMember(member.getMemberId());
+                reason += " | Auto-checkout enforced";
+            } catch (Exception ex) {
+                System.err.println("Failed to auto checkout: " + ex.getMessage());
+            }
+        }
+
+        try {
+            memberService.changeMemberStatus(member.getMemberId(), targetStatus, reason);
+            loadMembersFromBackend();
+            showAlert("Status Updated", member.getFullName() + " is now " + targetStatus + ".");
+        } catch (Exception ex) {
+            showAlert("Unable to update", ex.getMessage());
+        }
     }
 
     private void deleteMember(Member member) {
@@ -253,10 +333,17 @@ private void toggleMemberStatus(Member member) {
         Text subtitle = new Text("Search, view, and manage all gym members"); subtitle.getStyleClass().add("text-muted");
         titleBox.getChildren().addAll(title, subtitle);
         Region spacer = new Region(); HBox.setHgrow(spacer, Priority.ALWAYS);
+        HBox actions = new HBox(8);
+        Button newMemberButton = new Button("+ New Member");
+        newMemberButton.getStyleClass().addAll("btn", "btn-secondary");
+        newMemberButton.setOnAction(e -> showCreateMemberDialog());
+
         Button enrollButton = new Button("+ New Member Enrollment");
         enrollButton.getStyleClass().addAll("btn", "btn-primary");
         enrollButton.setOnAction(e -> navigationHandler.accept("enrollment-new"));
-        header.getChildren().addAll(titleBox, spacer, enrollButton);
+        actions.getChildren().addAll(newMemberButton, enrollButton);
+
+        header.getChildren().addAll(titleBox, spacer, actions);
         return header;
     }
 
@@ -295,20 +382,28 @@ private void toggleMemberStatus(Member member) {
     }
 
     private HBox createStatsBar() {
-        HBox statsBar = new HBox(24);
+        statsBar = new HBox(24);
         statsBar.getStyleClass().add("stats-bar");
         statsBar.setPadding(new Insets(16, 20, 16, 20));
-        
+        refreshStatsBar();
+        return statsBar;
+    }
+
+    private void refreshStatsBar() {
+        if (statsBar == null) {
+            return;
+        }
+        statsBar.getChildren().clear();
         long total = allMembers.size();
-        long active = allMembers.stream().filter(m -> "Active".equals(m.getStatus())).count();
-        long suspended = allMembers.stream().filter(m -> "Suspended".equals(m.getStatus())).count();
-        
+        long active = allMembers.stream().filter(m -> "Active".equalsIgnoreCase(m.getStatus())).count();
+        long frozen = allMembers.stream().filter(m -> "Frozen".equalsIgnoreCase(m.getStatus())).count();
+        long inactive = allMembers.stream().filter(m -> "Inactive".equalsIgnoreCase(m.getStatus())).count();
         statsBar.getChildren().addAll(
             createStatItem("Total Members", String.valueOf(total), "#2563EB"),
             createStatItem("Active", String.valueOf(active), "#10B981"),
-            createStatItem("Suspended", String.valueOf(suspended), "#EF4444")
+            createStatItem("Frozen", String.valueOf(frozen), "#FACC15"),
+            createStatItem("Inactive", String.valueOf(inactive), "#EF4444")
         );
-        return statsBar;
     }
 
     private VBox createStatItem(String label, String value, String color) {

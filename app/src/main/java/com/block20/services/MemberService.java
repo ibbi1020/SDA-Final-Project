@@ -19,7 +19,7 @@ public interface MemberService {
     List<Transaction> getAllTransactions();
     List<Attendance> getAllAttendanceRecords(); 
     void updateMemberDetails(String id, String name, String email, String phone, String address);
-    void changeMemberStatus(String id, String newStatus); // For Suspend/Activate
+    void changeMemberStatus(String id, String newStatus, String reason); // For status updates
     void deleteMember(String id);
     List<AuditLog> getMemberHistory(String id);
 }
