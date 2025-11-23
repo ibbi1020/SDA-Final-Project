@@ -8,8 +8,6 @@ package com.block20;
 import com.block20.repositories.*;
 import com.block20.repositories.impl.*;
 import com.block20.services.*;
-import com.block20.services.PaymentGateway;
-import com.block20.services.PaymentService;
 import com.block20.services.impl.*;
 import com.block20.views.LoginGatewayView;
 import com.block20.views.MemberPortalView;
@@ -17,8 +15,6 @@ import com.block20.views.StaffPortalView;
 import javafx.application.Application;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
-import com.block20.services.impl.MockPaymentGateway;
-import com.block20.services.impl.PaymentServiceImpl;
 
 public class App extends Application {
     
@@ -32,6 +28,7 @@ public class App extends Application {
     private TrainerService trainerService;
     private TrainerScheduleService trainerScheduleService;
     private PaymentService paymentService;
+    private NotificationService notificationService;
     
     @Override
     public void start(Stage primaryStage) {
@@ -51,10 +48,11 @@ public class App extends Application {
         AuditRepository auditRepo = new AuditRepositoryImpl();
         TrainerAvailabilityRepository trainerAvailabilityRepo = new TrainerAvailabilityRepositoryImpl();
         TrainingSessionRepository trainingSessionRepo = new TrainingSessionRepositoryImpl();
+        NotificationRepository notifRepo = new NotificationRepositoryImpl();
 
         // 2. Create Services
         AuditService auditService = new AuditServiceImpl(auditRepo);
-        NotificationService notificationService = new NotificationServiceImpl();
+        this.notificationService = new NotificationServiceImpl(notifRepo);
         this.exportService = new ExportServiceImpl(); 
         PaymentGateway paymentGateway = new MockPaymentGateway();
 
@@ -176,7 +174,8 @@ public class App extends Application {
             this.exportService,
             this.trainerService,
             this.trainerScheduleService,
-            this::handleLogout
+            this::handleLogout,
+            this.notificationService
         );
         
         scene = new Scene(staffPortal.getView(), 1400, 900);

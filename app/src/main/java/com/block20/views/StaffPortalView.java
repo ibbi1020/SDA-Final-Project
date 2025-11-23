@@ -23,6 +23,7 @@ import com.block20.controllers.staff.StaffDashboardController;
 import com.block20.controllers.trainers.TrainerRegistryController;
 import com.block20.controllers.trainers.TrainingSessionsController;
 import com.block20.services.EquipmentService;
+import com.block20.services.NotificationService;
 import java.util.function.Consumer;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Label;
@@ -35,33 +36,36 @@ import javafx.scene.layout.VBox;
  * Manages the overall structure with top nav, sidebar, and content area
  */
 public class StaffPortalView {
-    
+
     private BorderPane rootView;
     private VBox contentArea;
     private SidebarNavigation sidebar;
     private TopNavigation topNav;
-    
+
     private final String staffId;
     private final String staffName;
     private final String staffRole;
     private final Consumer<String> logoutHandler;
-    
-    private final MemberService memberService; 
+
+    private final MemberService memberService;
     private final PaymentService paymentService;
     private final EquipmentService equipmentService;
     private final ExportService exportService;
     private final TrainerService trainerService;
+    private final NotificationService notificationService;
     private final TrainerScheduleService trainerScheduleService;
+
     public StaffPortalView(String staffId,
-                          String staffName,
-                          String staffRole,
-                          MemberService memberService,
-                          PaymentService paymentService,
-                          EquipmentService equipmentService,
-                          ExportService exportService,
-                          TrainerService trainerService,
-                          TrainerScheduleService trainerScheduleService,
-                          Consumer<String> logoutHandler) {
+            String staffName,
+            String staffRole,
+            MemberService memberService,
+            PaymentService paymentService,
+            EquipmentService equipmentService,
+            ExportService exportService,
+            TrainerService trainerService,
+            TrainerScheduleService trainerScheduleService,
+            Consumer<String> logoutHandler,
+            NotificationService notificationService) {
         this.staffId = staffId;
         this.staffName = staffName;
         this.staffRole = staffRole;
@@ -72,40 +76,58 @@ public class StaffPortalView {
         this.trainerService = trainerService;
         this.trainerScheduleService = trainerScheduleService;
         this.logoutHandler = logoutHandler;
+        this.notificationService = notificationService;
         initializeView();
     }
-    
+
     /**
      * Initialize the main portal view
      */
     private void initializeView() {
         rootView = new BorderPane();
         rootView.getStyleClass().add("main-container");
-        
+
         // Create top navigation
-        topNav = new TopNavigation(staffRole, this::handleTopNavAction);
+        topNav = new TopNavigation(staffRole, this::handleNavigation, this.notificationService);
         rootView.setTop(topNav.getView());
-        
+
         // Create sidebar navigation
         sidebar = new SidebarNavigation(this::handleNavigation);
         rootView.setLeft(sidebar.getView());
-        
+
         // Create content area
         contentArea = new VBox();
         VBox.setVgrow(contentArea, Priority.ALWAYS);
         rootView.setCenter(contentArea);
-        
+
         // Load default dashboard view
         showDashboard();
     }
-    
+
     /**
      * Handle navigation events from sidebar
      */
     private void handleNavigation(String navItem) {
         System.out.println("Navigation to: " + navItem);
-        
+
         switch (navItem) {
+            // --- FIXED: Added Missing TopNav Cases ---
+            case "logout":
+                if (logoutHandler != null) {
+                    logoutHandler.accept(staffId);
+                }
+                break;
+            case "logo":
+                showDashboard();
+                break;
+            case "profile":
+                Alert p = new Alert(Alert.AlertType.INFORMATION);
+                p.setTitle("Profile"); p.setHeaderText(null);
+                p.setContentText(String.format("Signed in as %s (%s)", staffName, staffRole));
+                p.showAndWait();
+                break;
+            // -----------------------------------------
+
             case "dashboard":
                 showDashboard();
                 break;
@@ -140,19 +162,24 @@ public class StaffPortalView {
                 showReportsOperational();
                 break;
             default:
-                showPlaceholder(navItem);
+                // If the bell is NOT handled internally by TopNavigation, it might send "notifications" here.
+                // We ignore it here because the Smart Bell should handle itself.
+                if (!navItem.equals("notifications") && !navItem.equals("settings")) {
+                    showPlaceholder(navItem);
+                }
         }
     }
-    
+
     private void showDashboard() {
         // Pass BOTH services
         StaffDashboardController dashboard = new StaffDashboardController(
-            staffName,
-            memberService,
-            equipmentService,
-            this::handleNavigation);
+                staffName,
+                memberService,
+                equipmentService,
+                this::handleNavigation);
         setContent(dashboard);
     }
+
     /**
      * Show check-in/check-out view
      */
@@ -161,29 +188,29 @@ public class StaffPortalView {
         CheckInController checkInController = new CheckInController(this.memberService);
         setContent(checkInController);
     }
-    
+
     /**
      * Show member registry view (combines search, create, attendance)
      */
     private void showMembersRegistry() {
-    // Pass the service (the "Brain") to the controller
-    MemberRegistryController memberRegistry = new MemberRegistryController(this::handleNavigation, this.memberService);
-    setContent(memberRegistry);
-}
-    
+        // Pass the service (the "Brain") to the controller
+        MemberRegistryController memberRegistry = new MemberRegistryController(this::handleNavigation,
+                this.memberService);
+        setContent(memberRegistry);
+    }
+
     /**
      * Show new enrollment view
      */
     private void showEnrollmentNew() {
         // PASS 'this.memberService' into the constructor
         EnrollmentController enrollmentController = new EnrollmentController(
-            this::handleNavigation,
-            this.memberService,
-            this.paymentService
-        );
+                this::handleNavigation,
+                this.memberService,
+                this.paymentService);
         setContent(enrollmentController);
     }
-    
+
     /**
      * Show renewals view (pending renewals + renewal processing)
      */
@@ -192,15 +219,16 @@ public class StaffPortalView {
         RenewalsController renewalsController = new RenewalsController(this::handleNavigation, this.memberService);
         setContent(renewalsController.getView()); // Note: check if your controller extends Region or has getView()
     }
-    
+
     /**
      * Show trainer registry view (combines register and manage trainers)
      */
     private void showTrainersRegistry() {
-        TrainerRegistryController trainerRegistryController = new TrainerRegistryController(this::handleNavigation, this.trainerService);
+        TrainerRegistryController trainerRegistryController = new TrainerRegistryController(this::handleNavigation,
+                this.trainerService);
         setContent(trainerRegistryController);
     }
-    
+
     /**
      * Show training sessions view (combines view sessions and schedule)
      */
@@ -208,43 +236,46 @@ public class StaffPortalView {
         TrainingSessionsController trainingSessionsController = new TrainingSessionsController(
                 this::handleNavigation,
                 this.trainerService,
-                this.trainerScheduleService
-        );
+                this.trainerScheduleService);
         setContent(trainingSessionsController);
     }
-    
+
     /**
      * Show equipment inventory view (includes add equipment)
      */
     private void showEquipmentInventory() {
         // Pass the service to the controller
-        EquipmentInventoryController controller = new EquipmentInventoryController(this::handleNavigation, this.equipmentService);
+        EquipmentInventoryController controller = new EquipmentInventoryController(this::handleNavigation,
+                this.equipmentService);
         setContent(controller);
     }
-    
+
     /**
      * Show maintenance schedule view
      */
     private void showEquipmentMaintenance() {
-        MaintenanceScheduleController maintenanceScheduleController = new MaintenanceScheduleController(this::handleNavigation);
+        MaintenanceScheduleController maintenanceScheduleController = new MaintenanceScheduleController(
+                this::handleNavigation);
         setContent(maintenanceScheduleController);
     }
-    
+
     /**
      * Show financial reports view
      */
     private void showReportsFinancial() {
         // PASS THE SERVICE
-        FinancialReportsController financialReportsController = new FinancialReportsController(this::handleNavigation, this.memberService, this.exportService);
+        FinancialReportsController financialReportsController = new FinancialReportsController(this::handleNavigation,
+                this.memberService, this.exportService);
         setContent(financialReportsController); // Add .getView() if your controller requires it
     }
-    
+
     private void showReportsOperational() {
         // PASS THE SERVICE
-        OperationalReportsController controller = new OperationalReportsController(this::handleNavigation, this.memberService);
+        OperationalReportsController controller = new OperationalReportsController(this::handleNavigation,
+                this.memberService);
         setContent(controller);
     }
-    
+
     /**
      * Show a placeholder view for screens not yet implemented
      */
@@ -252,20 +283,20 @@ public class StaffPortalView {
         VBox placeholder = new VBox(20);
         placeholder.getStyleClass().add("content-area");
         placeholder.setAlignment(javafx.geometry.Pos.CENTER);
-        
+
         Label titleLabel = new Label(screenName);
         titleLabel.getStyleClass().add("text-h1");
-        
+
         Label subtitleLabel = new Label("This screen is under construction");
         subtitleLabel.getStyleClass().add("text-body");
-        
+
         Label instructionLabel = new Label("Click on 'Dashboard' in the sidebar to return");
         instructionLabel.getStyleClass().add("text-caption");
-        
+
         placeholder.getChildren().addAll(titleLabel, subtitleLabel, instructionLabel);
         setContent(placeholder);
     }
-    
+
     /**
      * Set the content area to a new view
      */
@@ -274,7 +305,7 @@ public class StaffPortalView {
         contentArea.getChildren().add(view);
         VBox.setVgrow(view, Priority.ALWAYS);
     }
-    
+
     /**
      * Get the root view
      */
@@ -295,7 +326,8 @@ public class StaffPortalView {
                 }
                 break;
             case "notifications":
-                showTopNavMessage("Notifications", "You're all caught up. We'll alert you when something needs attention.");
+                showTopNavMessage("Notifications",
+                        "You're all caught up. We'll alert you when something needs attention.");
                 break;
             case "profile":
                 showTopNavMessage("Profile", String.format("Signed in as %s (%s)", staffName, staffRole));
