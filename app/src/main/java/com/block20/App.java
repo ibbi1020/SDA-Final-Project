@@ -60,8 +60,26 @@ public class App extends Application {
         // 4. Add Mock Data (UPDATED TO PASS VALIDATION)
         try {
             // FIX: Phone numbers must be valid (XXX-XXX-XXXX)
-            memberService.registerMember("John Doe", "john@example.com", "555-123-0101", "Premium");
-            memberService.registerMember("Jane Smith", "jane@example.com", "555-123-0102", "Basic");
+            memberService.registerMember(
+                "John Doe",
+                "john@example.com",
+                "555-123-0101",
+                "Premium",
+                "10 Wellness Way",
+                "Jane Doe",
+                "555-321-0001",
+                "Spouse"
+            );
+            memberService.registerMember(
+                "Jane Smith",
+                "jane@example.com",
+                "555-123-0102",
+                "Basic",
+                "200 Strength St",
+                "Tom Smith",
+                "555-888-0002",
+                "Brother"
+            );
             
             // Add fake check-in
             com.block20.models.Member john = memberRepo.findByEmail("john@example.com");

@@ -34,9 +34,17 @@ public class MemberServiceImpl implements MemberService {
         this.notificationService = notificationService;
     }
     @Override
-    public Member registerMember(String fullName, String email, String phone, String planType) {
+    public Member registerMember(String fullName,
+                                 String email,
+                                 String phone,
+                                 String planType,
+                                 String address,
+                                 String emergencyContactName,
+                                 String emergencyContactPhone,
+                                 String emergencyContactRelationship) {
         // 1. Validate Syntax
         validateMemberData(fullName, email, phone);
+        validateEmergencyContact(emergencyContactName, emergencyContactPhone, emergencyContactRelationship);
 
         // 2. Check Duplicates (Business Rule)
         if (memberRepo.findByEmail(email) != null) {
@@ -44,7 +52,17 @@ public class MemberServiceImpl implements MemberService {
         }
 
         String newId = "M" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
-        Member newMember = new Member(newId, fullName, email, phone, planType);
+        Member newMember = new Member(
+            newId,
+            fullName,
+            email,
+            phone,
+            planType,
+            address,
+            emergencyContactName,
+            emergencyContactPhone,
+            emergencyContactRelationship
+        );
         memberRepo.save(newMember);
         
         notificationService.sendWelcomePacket(email, fullName, newId);
@@ -62,7 +80,7 @@ public class MemberServiceImpl implements MemberService {
     @Override
     public void renewMembership(String memberId, String newPlanType) {
         Member member = memberRepo.findAll().stream()
-            .filter(m -> m.getMemberId().equals(memberId))
+            .filter(m -> m.getMemberId().equalsIgnoreCase(memberId))
             .findFirst()
             .orElseThrow(() -> new IllegalArgumentException("Member not found"));
 
@@ -134,6 +152,21 @@ public class MemberServiceImpl implements MemberService {
     public int getCurrentOccupancyCount() {
         return attendanceRepo.countActiveVisits();
     }
+
+    @Override
+    public double getOutstandingBalance(String memberId) {
+        Member member = memberRepo.findAll().stream()
+            .filter(m -> m.getMemberId().equals(memberId))
+            .findFirst()
+            .orElse(null);
+        if (member == null) {
+            return 0.0;
+        }
+        if (member.getExpiryDate() != null && member.getExpiryDate().isBefore(LocalDate.now())) {
+            return getPlanPrice(member.getPlanType());
+        }
+        return 0.0;
+    }
     @Override
     public List<Transaction> getAllTransactions() {
         return transactionRepo.findAll();
@@ -143,7 +176,14 @@ public class MemberServiceImpl implements MemberService {
         return attendanceRepo.findAll();
     }
     @Override
-    public void updateMemberDetails(String id, String name, String email, String phone, String address) {
+    public void updateMemberDetails(String id,
+                                    String name,
+                                    String email,
+                                    String phone,
+                                    String address,
+                                    String emergencyContactName,
+                                    String emergencyContactPhone,
+                                    String emergencyContactRelationship) {
         Member m = memberRepo.findAll().stream()
             .filter(member -> member.getMemberId().equals(id))
             .findFirst()
@@ -151,6 +191,7 @@ public class MemberServiceImpl implements MemberService {
             
         // 1. Validate Syntax
         validateMemberData(name, email, phone);
+        validateEmergencyContact(emergencyContactName, emergencyContactPhone, emergencyContactRelationship);
         
         // 2. Check Email Uniqueness (Only if email changed)
         if (!m.getEmail().equalsIgnoreCase(email)) {
@@ -164,6 +205,9 @@ public class MemberServiceImpl implements MemberService {
         m.setEmail(email);
         m.setPhone(phone);
         m.setAddress(address); 
+        m.setEmergencyContactName(emergencyContactName);
+        m.setEmergencyContactPhone(emergencyContactPhone);
+        m.setEmergencyContactRelationship(emergencyContactRelationship);
         
         memberRepo.save(m);
         auditService.logAction(id, "PROFILE_UPDATE", "Changed details.");
@@ -215,6 +259,18 @@ public class MemberServiceImpl implements MemberService {
             throw new IllegalArgumentException("Invalid phone format (Use 10 digits or 555-0199).");
         }
         
+    }
+
+    private void validateEmergencyContact(String name, String phone, String relationship) {
+        if (name == null || name.trim().isEmpty()) {
+            throw new IllegalArgumentException("Emergency contact name is required.");
+        }
+        if (phone == null || phone.trim().isEmpty()) {
+            throw new IllegalArgumentException("Emergency contact phone is required.");
+        }
+        if (relationship == null || relationship.trim().isEmpty()) {
+            throw new IllegalArgumentException("Emergency contact relationship is required.");
+        }
     }
     @Override
     public List<AuditLog> getMemberHistory(String memberId) {

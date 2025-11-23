@@ -4,6 +4,10 @@ import com.block20.models.Member;
 import com.block20.services.MemberService;
 import com.block20.models.AuditLog;
 
+import javafx.beans.binding.Bindings;
+import javafx.beans.binding.BooleanBinding;
+import javafx.beans.property.BooleanProperty;
+import javafx.beans.property.SimpleBooleanProperty;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
@@ -12,7 +16,8 @@ import javafx.scene.layout.*;
 import javafx.scene.text.Text;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
-import java.util.Optional;
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.function.Consumer;
 import java.util.List;
 
@@ -24,6 +29,7 @@ public class MemberRegistryController extends ScrollPane {
     private TextField searchField;
     private ComboBox<String> statusFilter;
     private ComboBox<String> planFilter;
+    private ComboBox<String> expiryFilter;
     private HBox statsBar;
     private Consumer<String> navigationHandler;
 
@@ -119,6 +125,10 @@ public class MemberRegistryController extends ScrollPane {
         addProfileRow(grid, 1, "Phone:", member.getPhone());
         addProfileRow(grid, 2, "Plan:", member.getPlanType());
         addProfileRow(grid, 3, "Expires:", member.getExpiryDate().toString());
+        addProfileRow(grid, 4, "Address:", member.getAddress());
+        addProfileRow(grid, 5, "Emergency Contact:", member.getEmergencyContactName());
+        addProfileRow(grid, 6, "Emergency Phone:", member.getEmergencyContactPhone());
+        addProfileRow(grid, 7, "Relationship:", member.getEmergencyContactRelationship());
 
 VBox historyBox = new VBox(8);
         historyBox.setPadding(new Insets(10, 0, 0, 0));
@@ -147,10 +157,9 @@ VBox historyBox = new VBox(8);
         Button editBtn = new Button("Edit");
         editBtn.setOnAction(e -> showEditDialog(member));
         
-        String nextStatus = member.getStatus().equalsIgnoreCase("Suspended") ? "Active" : "Suspended";
-        Button statusBtn = new Button(nextStatus.equalsIgnoreCase("Active") ? "Activate" : "Suspend");
+        Button statusBtn = new Button("Change Status");
         statusBtn.getStyleClass().add("btn-warning");
-        statusBtn.setOnAction(e -> changeMemberStatus(member, nextStatus, !"Active".equalsIgnoreCase(nextStatus)));
+        statusBtn.setOnAction(e -> showStatusChangeDialog(member));
         
         Button deleteBtn = new Button("Delete");
         deleteBtn.getStyleClass().add("btn-danger");
@@ -164,7 +173,8 @@ VBox historyBox = new VBox(8);
 
     private void addProfileRow(GridPane grid, int row, String label, String value) {
         Text l = new Text(label); l.setStyle("-fx-font-weight: bold; -fx-fill: #64748B;");
-        Text v = new Text(value);
+        String displayValue = (value == null || value.isBlank()) ? "—" : value;
+        Text v = new Text(displayValue);
         grid.add(l, 0, row); grid.add(v, 1, row);
     }
 
@@ -184,17 +194,34 @@ VBox historyBox = new VBox(8);
         TextField nameField = new TextField(member.getFullName());
         TextField emailField = new TextField(member.getEmail());
         TextField phoneField = new TextField(member.getPhone());
+        TextField addressField = new TextField(member.getAddress() == null ? "" : member.getAddress());
+        TextField emergencyNameField = new TextField(member.getEmergencyContactName() == null ? "" : member.getEmergencyContactName());
+        TextField emergencyPhoneField = new TextField(member.getEmergencyContactPhone() == null ? "" : member.getEmergencyContactPhone());
+        TextField emergencyRelationshipField = new TextField(member.getEmergencyContactRelationship() == null ? "" : member.getEmergencyContactRelationship());
 
         grid.add(new Label("Name:"), 0, 0); grid.add(nameField, 1, 0);
         grid.add(new Label("Email:"), 0, 1); grid.add(emailField, 1, 1);
         grid.add(new Label("Phone:"), 0, 2); grid.add(phoneField, 1, 2);
+        grid.add(new Label("Address:"), 0, 3); grid.add(addressField, 1, 3);
+        grid.add(new Label("Emergency Contact"), 0, 4); grid.add(emergencyNameField, 1, 4);
+        grid.add(new Label("Emergency Phone"), 0, 5); grid.add(emergencyPhoneField, 1, 5);
+        grid.add(new Label("Relationship"), 0, 6); grid.add(emergencyRelationshipField, 1, 6);
 
         dialog.getDialogPane().setContent(grid);
 
         dialog.showAndWait().ifPresent(response -> {
             if (response == saveBtn) {
                 try {
-                    memberService.updateMemberDetails(member.getMemberId(), nameField.getText(), emailField.getText(), phoneField.getText(), "");
+                    memberService.updateMemberDetails(
+                        member.getMemberId(),
+                        nameField.getText(),
+                        emailField.getText(),
+                        phoneField.getText(),
+                        addressField.getText(),
+                        emergencyNameField.getText(),
+                        emergencyPhoneField.getText(),
+                        emergencyRelationshipField.getText()
+                    );
                     loadMembersFromBackend(); // Refresh UI
                 } catch (Exception e) {
                     showAlert("Update Failed", e.getMessage());
@@ -222,11 +249,24 @@ VBox historyBox = new VBox(8);
         emailField.setPromptText("email@example.com");
         TextField phoneField = new TextField();
         phoneField.setPromptText("555-123-0101");
+        TextField addressField = new TextField();
+        addressField.setPromptText("123 Fitness Ave");
+        TextField emergencyNameField = new TextField();
+        emergencyNameField.setPromptText("Emergency contact name");
+        TextField emergencyPhoneField = new TextField();
+        emergencyPhoneField.setPromptText("Contact phone");
+        TextField emergencyRelationshipField = new TextField();
+        emergencyRelationshipField.setPromptText("Relationship");
 
         ComboBox<String> planField = new ComboBox<>();
         planField.getItems().addAll("Basic", "Premium", "Elite", "Student");
         planField.getSelectionModel().selectFirst();
         planField.setPrefWidth(220);
+
+        Label duplicateWarning = new Label("Duplicate email detected. Open the existing profile instead.");
+        duplicateWarning.setStyle("-fx-text-fill: #DC2626;");
+        duplicateWarning.setVisible(false);
+        BooleanProperty duplicateEmail = new SimpleBooleanProperty(false);
 
         grid.add(new Label("Full Name"), 0, 0);
         grid.add(nameField, 1, 0);
@@ -234,8 +274,18 @@ VBox historyBox = new VBox(8);
         grid.add(emailField, 1, 1);
         grid.add(new Label("Phone"), 0, 2);
         grid.add(phoneField, 1, 2);
-        grid.add(new Label("Membership Plan"), 0, 3);
-        grid.add(planField, 1, 3);
+        grid.add(new Label("Address"), 0, 3);
+        grid.add(addressField, 1, 3);
+        grid.add(new Label("Emergency Contact"), 0, 4);
+        grid.add(emergencyNameField, 1, 4);
+        grid.add(new Label("Emergency Phone"), 0, 5);
+        grid.add(emergencyPhoneField, 1, 5);
+        grid.add(new Label("Relationship"), 0, 6);
+        grid.add(emergencyRelationshipField, 1, 6);
+        grid.add(new Label("Membership Plan"), 0, 7);
+        grid.add(planField, 1, 7);
+        GridPane.setColumnSpan(duplicateWarning, 2);
+        grid.add(duplicateWarning, 0, 8);
 
         dialog.getDialogPane().setContent(grid);
 
@@ -244,7 +294,17 @@ VBox historyBox = new VBox(8);
             nameField.textProperty().isEmpty()
                 .or(emailField.textProperty().isEmpty())
                 .or(phoneField.textProperty().isEmpty())
+                .or(emergencyNameField.textProperty().isEmpty())
+                .or(emergencyPhoneField.textProperty().isEmpty())
+                .or(emergencyRelationshipField.textProperty().isEmpty())
+                .or(duplicateEmail)
         );
+
+        emailField.textProperty().addListener((obs, oldVal, newVal) -> {
+            boolean duplicate = emailExists(newVal);
+            duplicateWarning.setVisible(duplicate);
+            duplicateEmail.set(duplicate);
+        });
 
         dialog.showAndWait().ifPresent(result -> {
             if (result == createBtn) {
@@ -253,7 +313,11 @@ VBox historyBox = new VBox(8);
                         nameField.getText().trim(),
                         emailField.getText().trim(),
                         phoneField.getText().trim(),
-                        planField.getValue()
+                        planField.getValue(),
+                        addressField.getText().trim(),
+                        emergencyNameField.getText().trim(),
+                        emergencyPhoneField.getText().trim(),
+                        emergencyRelationshipField.getText().trim()
                     );
                     loadMembersFromBackend();
                     showAlert("Member Created", created.getFullName() + " has been added to the registry.");
@@ -264,37 +328,121 @@ VBox historyBox = new VBox(8);
         });
     }
 
-    private void changeMemberStatus(Member member, String targetStatus, boolean requireReason) {
+    private void showStatusChangeDialog(Member member) {
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Change Member Status");
+        dialog.setHeaderText("Current status: " + member.getStatus());
+
+        ButtonType updateBtn = new ButtonType("Update Status", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(updateBtn, ButtonType.CANCEL);
+
+        ComboBox<String> statusField = new ComboBox<>();
+        statusField.getItems().addAll("Active", "Frozen", "Suspended", "Inactive");
+        if (member.getStatus() != null && !statusField.getItems().contains(member.getStatus())) {
+            statusField.getItems().add(member.getStatus());
+        }
+        statusField.setValue(member.getStatus());
+
+        ComboBox<String> reasonField = new ComboBox<>();
+        reasonField.getItems().addAll("Billing Issue", "Medical Hold", "Travel", "Member Request", "Policy Violation", "Other");
+        reasonField.getSelectionModel().selectFirst();
+
+        TextArea notesField = new TextArea();
+        notesField.setPromptText("Optional note or ticket #");
+        notesField.setPrefRowCount(3);
+
+        double outstanding = memberService.getOutstandingBalance(member.getMemberId());
+        Label outstandingLabel = new Label(String.format("Outstanding Balance: $%.2f", outstanding));
+        outstandingLabel.setStyle(outstanding > 0 ? "-fx-text-fill: #DC2626;" : "-fx-text-fill: #059669;");
+
+        CheckBox duesConfirmed = new CheckBox("Confirm dues are collected or waived");
+        duesConfirmed.setVisible(outstanding > 0);
+        duesConfirmed.setManaged(outstanding > 0);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(12);
+        grid.setVgap(12);
+        grid.setPadding(new Insets(10));
+        grid.add(new Label("New Status"), 0, 0);
+        grid.add(statusField, 1, 0);
+        grid.add(new Label("Reason"), 0, 1);
+        grid.add(reasonField, 1, 1);
+        grid.add(new Label("Notes"), 0, 2);
+        grid.add(notesField, 1, 2);
+        grid.add(outstandingLabel, 0, 3);
+        grid.add(duesConfirmed, 1, 3);
+
+        dialog.getDialogPane().setContent(grid);
+
+        BooleanProperty requiresNote = new SimpleBooleanProperty(false);
+        BooleanProperty requiresOutstandingAck = new SimpleBooleanProperty(outstanding > 0 && isAccessRestrictingStatus(statusField.getValue()));
+        duesConfirmed.setDisable(!requiresOutstandingAck.get());
+
+        reasonField.valueProperty().addListener((obs, oldVal, newVal) ->
+            requiresNote.set("Other".equals(newVal))
+        );
+
+        statusField.valueProperty().addListener((obs, oldVal, newVal) -> {
+            boolean needsAck = outstanding > 0 && isAccessRestrictingStatus(newVal);
+            requiresOutstandingAck.set(needsAck);
+            if (!needsAck) {
+                duesConfirmed.setSelected(false);
+            }
+            duesConfirmed.setDisable(!needsAck);
+        });
+
+        BooleanBinding noteMissing = Bindings.createBooleanBinding(
+            () -> notesField.getText().trim().isEmpty(),
+            notesField.textProperty()
+        );
+
+        Node updateNode = dialog.getDialogPane().lookupButton(updateBtn);
+        updateNode.disableProperty().bind(
+            statusField.valueProperty().isNull()
+                .or(statusField.valueProperty().isEqualTo(member.getStatus()))
+                .or(reasonField.valueProperty().isNull())
+                .or(requiresNote.and(noteMissing))
+                .or(requiresOutstandingAck.and(duesConfirmed.selectedProperty().not()))
+        );
+
+        dialog.showAndWait().ifPresent(response -> {
+            if (response == updateBtn) {
+                String targetStatus = statusField.getValue();
+                StringBuilder reasonBuilder = new StringBuilder(reasonField.getValue());
+                if (!notesField.getText().isBlank()) {
+                    reasonBuilder.append(" | ").append(notesField.getText().trim());
+                }
+                changeMemberStatus(member, targetStatus, reasonBuilder.toString());
+            }
+        });
+    }
+
+    private boolean isAccessRestrictingStatus(String status) {
+        if (status == null) {
+            return false;
+        }
+        return !"Active".equalsIgnoreCase(status);
+    }
+
+    private void changeMemberStatus(Member member, String targetStatus, String reason) {
         if (member.getStatus() != null && member.getStatus().equalsIgnoreCase(targetStatus)) {
             showAlert("No Change", member.getFullName() + " is already " + targetStatus + ".");
             return;
         }
 
-        String reason = "Manual update";
-        if (requireReason) {
-            TextInputDialog dialog = new TextInputDialog();
-            dialog.setTitle("Reason Required");
-            dialog.setHeaderText("Provide a quick note for setting status to " + targetStatus);
-            dialog.setContentText("Reason:");
-            Optional<String> result = dialog.showAndWait();
-            if (result.isEmpty()) {
-                return;
-            }
-            reason = result.get().isBlank() ? "Not provided" : result.get().trim();
-        }
-
-        boolean removedAccess = !"Active".equalsIgnoreCase(targetStatus);
+        String finalReason = (reason == null || reason.isBlank()) ? "Manual update" : reason.trim();
+        boolean removedAccess = isAccessRestrictingStatus(targetStatus);
         if (removedAccess && memberService.isMemberCheckedIn(member.getMemberId())) {
             try {
                 memberService.checkOutMember(member.getMemberId());
-                reason += " | Auto-checkout enforced";
+                finalReason += " | Auto-checkout enforced";
             } catch (Exception ex) {
                 System.err.println("Failed to auto checkout: " + ex.getMessage());
             }
         }
 
         try {
-            memberService.changeMemberStatus(member.getMemberId(), targetStatus, reason);
+            memberService.changeMemberStatus(member.getMemberId(), targetStatus, finalReason);
             loadMembersFromBackend();
             showAlert("Status Updated", member.getFullName() + " is now " + targetStatus + ".");
         } catch (Exception ex) {
@@ -355,7 +503,7 @@ VBox historyBox = new VBox(8);
         HBox searchBox = new HBox(12);
         searchBox.setAlignment(Pos.CENTER_LEFT);
         searchField = new TextField();
-        searchField.setPromptText("Search by name, email, phone...");
+        searchField.setPromptText("Search by name, ID, email, phone...");
         searchField.setPrefWidth(500);
         searchField.textProperty().addListener((obs, oldVal, newVal) -> filterMembers());
         searchBox.getChildren().addAll(new Label("🔍"), searchField);
@@ -364,7 +512,7 @@ VBox historyBox = new VBox(8);
         filtersBox.setAlignment(Pos.CENTER_LEFT);
         
         statusFilter = new ComboBox<>();
-        statusFilter.getItems().addAll("All Statuses", "Active", "Expired", "Suspended");
+        statusFilter.getItems().addAll("All Statuses", "Active", "Expired", "Suspended", "Frozen", "Inactive");
         statusFilter.setValue("All Statuses");
         statusFilter.setOnAction(e -> filterMembers());
         
@@ -372,11 +520,21 @@ VBox historyBox = new VBox(8);
         planFilter.getItems().addAll("All Plans", "Basic", "Premium", "Elite", "Student");
         planFilter.setValue("All Plans");
         planFilter.setOnAction(e -> filterMembers());
+
+        expiryFilter = new ComboBox<>();
+        expiryFilter.getItems().addAll("Any Expiration", "Expiring in 7 days", "Expiring in 30 days", "Expired");
+        expiryFilter.setValue("Any Expiration");
+        expiryFilter.setOnAction(e -> filterMembers());
         
         Button clearBtn = new Button("Clear Filters");
-        clearBtn.setOnAction(e -> { searchField.clear(); statusFilter.setValue("All Statuses"); planFilter.setValue("All Plans"); });
+        clearBtn.setOnAction(e -> {
+            searchField.clear();
+            statusFilter.setValue("All Statuses");
+            planFilter.setValue("All Plans");
+            expiryFilter.setValue("Any Expiration");
+        });
         
-        filtersBox.getChildren().addAll(new Label("Filters:"), statusFilter, planFilter, clearBtn);
+        filtersBox.getChildren().addAll(new Label("Filters:"), statusFilter, planFilter, expiryFilter, clearBtn);
         container.getChildren().addAll(searchBox, new Separator(), filtersBox);
         return container;
     }
@@ -478,21 +636,47 @@ VBox historyBox = new VBox(8);
         String searchText = searchField.getText().toLowerCase().trim();
         String statusValue = statusFilter.getValue();
         String planValue = planFilter.getValue();
+        String expiryValue = expiryFilter != null ? expiryFilter.getValue() : "Any Expiration";
+        LocalDate today = LocalDate.now();
 
         for (Member member : allMembers) {
             boolean matchesSearch = searchText.isEmpty() ||
                 (member.getFullName() != null && member.getFullName().toLowerCase().contains(searchText)) ||
-                (member.getEmail() != null && member.getEmail().toLowerCase().contains(searchText));
+                (member.getEmail() != null && member.getEmail().toLowerCase().contains(searchText)) ||
+                (member.getPhone() != null && member.getPhone().toLowerCase().contains(searchText)) ||
+                (member.getMemberId() != null && member.getMemberId().toLowerCase().contains(searchText));
 
             boolean matchesStatus = statusValue.equals("All Statuses") ||
-                (member.getStatus() != null && member.getStatus().equals(statusValue));
+                (member.getStatus() != null && member.getStatus().equalsIgnoreCase(statusValue));
 
             boolean matchesPlan = planValue.equals("All Plans") ||
-                (member.getPlanType() != null && member.getPlanType().equals(planValue));
+                (member.getPlanType() != null && member.getPlanType().equalsIgnoreCase(planValue));
 
-            if (matchesSearch && matchesStatus && matchesPlan) {
+            boolean matchesExpiry;
+            if (member.getExpiryDate() == null) {
+                matchesExpiry = expiryValue.equals("Any Expiration");
+            } else {
+                long daysUntilExpiry = ChronoUnit.DAYS.between(today, member.getExpiryDate());
+                switch (expiryValue) {
+                    case "Expiring in 7 days" -> matchesExpiry = daysUntilExpiry >= 0 && daysUntilExpiry <= 7;
+                    case "Expiring in 30 days" -> matchesExpiry = daysUntilExpiry >= 0 && daysUntilExpiry <= 30;
+                    case "Expired" -> matchesExpiry = member.getExpiryDate().isBefore(today);
+                    default -> matchesExpiry = true;
+                }
+            }
+
+            if (matchesSearch && matchesStatus && matchesPlan && matchesExpiry) {
                 filteredMembers.add(member);
             }
         }
+    }
+
+    private boolean emailExists(String email) {
+        if (memberService == null || email == null || email.isBlank()) {
+            return false;
+        }
+        String normalized = email.trim().toLowerCase();
+        return memberService.getAllMembers().stream()
+            .anyMatch(existing -> existing.getEmail() != null && existing.getEmail().toLowerCase().equals(normalized));
     }
 }

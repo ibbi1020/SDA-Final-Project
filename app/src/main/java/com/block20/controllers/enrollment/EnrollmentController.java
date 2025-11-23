@@ -967,7 +967,11 @@ private void saveEnrollmentToBackend() {
             enrollmentData.fullName,
             enrollmentData.email,
             enrollmentData.phone,
-            enrollmentData.selectedPlan
+            enrollmentData.selectedPlan,
+            enrollmentData.address,
+            enrollmentData.emergencyContactName,
+            enrollmentData.emergencyContactPhone,
+            enrollmentData.emergencyRelationship
         );
 
         // 2. Update our data object with the REAL ID from the database

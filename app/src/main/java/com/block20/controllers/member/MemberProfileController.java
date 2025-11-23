@@ -174,14 +174,29 @@ public class MemberProfileController extends ScrollPane {
         String phone = phoneField.getText().trim();
         String address = addressField.getText().trim();
         LocalDate dateOfBirth = dobPicker.getValue();
+        String emergencyName = emergencyNameField.getText().trim();
+        String emergencyPhone = emergencyPhoneField.getText().trim();
+        String emergencyRelationship = emergencyRelationshipField.getText().trim();
 
         try {
             if (memberService != null && profileData.member != null) {
-                memberService.updateMemberDetails(profileData.member.getMemberId(), fullName, email, phone, address);
+                memberService.updateMemberDetails(
+                    profileData.member.getMemberId(),
+                    fullName,
+                    email,
+                    phone,
+                    address,
+                    emergencyName,
+                    emergencyPhone,
+                    emergencyRelationship
+                );
                 profileData.member.setFullName(fullName);
                 profileData.member.setEmail(email);
                 profileData.member.setPhone(phone);
                 profileData.member.setAddress(address);
+                profileData.member.setEmergencyContactName(emergencyName);
+                profileData.member.setEmergencyContactPhone(emergencyPhone);
+                profileData.member.setEmergencyContactRelationship(emergencyRelationship);
             }
 
             profileData.fullName = fullName;
@@ -189,9 +204,9 @@ public class MemberProfileController extends ScrollPane {
             profileData.phone = phone;
             profileData.address = address;
             profileData.dateOfBirth = dateOfBirth;
-            profileData.emergencyName = emergencyNameField.getText().trim();
-            profileData.emergencyPhone = emergencyPhoneField.getText().trim();
-            profileData.emergencyRelationship = emergencyRelationshipField.getText().trim();
+            profileData.emergencyName = emergencyName;
+            profileData.emergencyPhone = emergencyPhone;
+            profileData.emergencyRelationship = emergencyRelationship;
 
             setEditing(false);
             showAlert(Alert.AlertType.INFORMATION, "Profile Updated", "Your profile changes have been saved.");
@@ -251,6 +266,9 @@ public class MemberProfileController extends ScrollPane {
             this.email = member.getEmail();
             this.phone = member.getPhone();
             this.address = member.getAddress() != null ? member.getAddress() : "";
+            this.emergencyName = member.getEmergencyContactName() != null ? member.getEmergencyContactName() : "";
+            this.emergencyPhone = member.getEmergencyContactPhone() != null ? member.getEmergencyContactPhone() : "";
+            this.emergencyRelationship = member.getEmergencyContactRelationship() != null ? member.getEmergencyContactRelationship() : "";
         }
     }
 }

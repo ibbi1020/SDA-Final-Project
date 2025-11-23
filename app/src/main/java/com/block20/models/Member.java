@@ -12,12 +12,28 @@ public class Member {
     private LocalDate joinDate;
     private LocalDate expiryDate;
     private String address;
-    public Member(String memberId, String fullName, String email, String phone, String planType) {
+    private String emergencyContactName;
+    private String emergencyContactPhone;
+    private String emergencyContactRelationship;
+
+    public Member(String memberId,
+                  String fullName,
+                  String email,
+                  String phone,
+                  String planType,
+                  String address,
+                  String emergencyContactName,
+                  String emergencyContactPhone,
+                  String emergencyContactRelationship) {
         this.memberId = memberId;
         this.fullName = fullName;
         this.email = email;
         this.phone = phone;
         this.planType = planType;
+        this.address = address;
+        this.emergencyContactName = emergencyContactName;
+        this.emergencyContactPhone = emergencyContactPhone;
+        this.emergencyContactRelationship = emergencyContactRelationship;
         
         // Defaults
         this.status = "Active";
@@ -35,6 +51,9 @@ public class Member {
     public LocalDate getJoinDate() { return joinDate; }
     public LocalDate getExpiryDate() { return expiryDate; }
     public String getAddress() { return address; }
+    public String getEmergencyContactName() { return emergencyContactName; }
+    public String getEmergencyContactPhone() { return emergencyContactPhone; }
+    public String getEmergencyContactRelationship() { return emergencyContactRelationship; }
     // Setters
     public void setFullName(String fullName) { this.fullName = fullName; }
     public void setPhone(String phone) { this.phone = phone; }
@@ -42,6 +61,9 @@ public class Member {
     public void setPlanType(String planType) { this.planType = planType; }
     public void setAddress(String address) { this.address = address; }
     public void setExpiryDate(LocalDate expiryDate) { this.expiryDate = expiryDate; }
-    public void setEmail(String email) { this.email = email; }  
+    public void setEmail(String email) { this.email = email; }
+    public void setEmergencyContactName(String emergencyContactName) { this.emergencyContactName = emergencyContactName; }
+    public void setEmergencyContactPhone(String emergencyContactPhone) { this.emergencyContactPhone = emergencyContactPhone; }
+    public void setEmergencyContactRelationship(String emergencyContactRelationship) { this.emergencyContactRelationship = emergencyContactRelationship; }
 
 }
