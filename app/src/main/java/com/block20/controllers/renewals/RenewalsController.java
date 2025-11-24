@@ -1,6 +1,6 @@
 /*
  * Block20 Gym Management System
- * Renewals Controller - Pending Renewals & Process Renewal Flow
+ * Renewals Controller - Fixed Inheritance Structure
  */
 package com.block20.controllers.renewals;
 
@@ -16,41 +16,46 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import javafx.scene.text.Text;
 
-public class RenewalsController {
 
-    private ScrollPane mainContainer;
+public class RenewalsController extends ScrollPane { // <--- The Controller IS the View
+
     private StackPane viewContainer;
     private VBox pendingRenewalsView;
     private StackPane renewalProcessView;
     private Consumer<String> navigationHandler;
-
-    // Service Dependency
     private MemberService memberService;
-
-    // Current renewal in process
-    private RenewalData currentRenewal;
 
     // Filter state
     private String currentFilter = "All";
     
-    // UI Reference for updates (The fix for the filter bug)
+    // UI References
     private VBox tableRowsContainer;
+    private Label statsTotalLabel;
+    private Label statsExpiringLabel;
+    private Label statsOverdueLabel;
+    
+    // Renewal Process State
+    private RenewalData currentRenewal;
 
     public RenewalsController(Consumer<String> navigationHandler, MemberService memberService) {
         this.navigationHandler = navigationHandler;
         this.memberService = memberService;
         initializeView();
+        refreshData(); 
     }
 
     private void initializeView() {
-        mainContainer = new ScrollPane();
-        mainContainer.setFitToWidth(true);
-        mainContainer.setFitToHeight(false);
-        mainContainer.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
-        mainContainer.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        mainContainer.getStyleClass().add("content-scroll-pane");
+        // Configure THIS ScrollPane (The class itself)
+        this.setFitToWidth(true);
+        this.setFitToHeight(false);
+        this.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        this.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        this.getStyleClass().add("content-scroll-pane");
 
         viewContainer = new StackPane();
         viewContainer.getStyleClass().add("renewals-container");
@@ -58,11 +63,9 @@ public class RenewalsController {
         pendingRenewalsView = createPendingRenewalsView();
 
         viewContainer.getChildren().add(pendingRenewalsView);
-        mainContainer.setContent(viewContainer);
-    }
-
-    public ScrollPane getView() {
-        return mainContainer;
+        
+        // Set the content of THIS ScrollPane
+        this.setContent(viewContainer);
     }
 
     // ==================== PENDING RENEWALS VIEW ====================
@@ -74,9 +77,9 @@ public class RenewalsController {
 
         container.getChildren().addAll(
                 createHeader(),
-                createFiltersSection(),
                 createStatsBar(),
-                createRenewalsTable()); // This now initializes tableRowsContainer
+                createFiltersSection(),
+                createRenewalsTable()); 
 
         return container;
     }
@@ -84,16 +87,37 @@ public class RenewalsController {
     private HBox createHeader() {
         HBox header = new HBox(15);
         header.setAlignment(Pos.CENTER_LEFT);
-
         Label titleLabel = new Label("Renewals");
         titleLabel.getStyleClass().addAll("page-title");
-
         Label subtitleLabel = new Label("Manage pending renewals and process membership extensions");
         subtitleLabel.getStyleClass().add("page-subtitle");
-
         VBox titleBox = new VBox(5, titleLabel, subtitleLabel);
         header.getChildren().add(titleBox);
         return header;
+    }
+
+    private HBox createStatsBar() {
+        HBox statsBar = new HBox(24);
+        statsBar.setPadding(new Insets(10, 0, 10, 0));
+        
+        statsTotalLabel = new Label("-");
+        statsExpiringLabel = new Label("-");
+        statsOverdueLabel = new Label("-");
+        
+        statsBar.getChildren().addAll(
+            createStatItem("Total Pending", statsTotalLabel, "#2563EB"),
+            createStatItem("Expiring Soon", statsExpiringLabel, "#F59E0B"),
+            createStatItem("Overdue", statsOverdueLabel, "#EF4444")
+        );
+        return statsBar;
+    }
+
+    private VBox createStatItem(String title, Label valueLabel, String color) {
+        VBox box = new VBox(4);
+        valueLabel.setStyle("-fx-font-size: 24px; -fx-font-weight: bold; -fx-text-fill: " + color + ";");
+        Text lbl = new Text(title); lbl.getStyleClass().add("text-caption");
+        box.getChildren().addAll(valueLabel, lbl);
+        return box;
     }
 
     private HBox createFiltersSection() {
@@ -124,87 +148,63 @@ public class RenewalsController {
         overdueFilter.setOnAction(e -> applyFilter("Overdue"));
 
         filtersBox.getChildren().addAll(filtersLabel, allFilter, expiringSoonFilter, overdueFilter);
-
         return filtersBox;
-    }
-
-    private HBox createStatsBar() {
-        HBox statsBar = new HBox(20);
-        statsBar.setAlignment(Pos.CENTER_LEFT);
-        statsBar.setPadding(new Insets(15));
-        statsBar.getStyleClass().add("stats-bar");
-
-        // Dynamic Stats Calculation
-        List<Member> members = memberService.getAllMembers();
-        long total = members.stream().filter(m -> m.getExpiryDate().isBefore(LocalDate.now().plusMonths(1))).count();
-        long overdue = members.stream().filter(m -> m.getExpiryDate().isBefore(LocalDate.now())).count();
-        long soon = total - overdue;
-
-        statsBar.getChildren().addAll(
-                createStatItem("Total Pending", String.valueOf(total), "#3B82F6"),
-                createStatItem("Expiring Soon", String.valueOf(soon), "#F59E0B"),
-                createStatItem("Overdue", String.valueOf(overdue), "#EF4444"));
-
-        return statsBar;
-    }
-
-    private VBox createStatItem(String label, String value, String color) {
-        VBox statBox = new VBox(5);
-        statBox.setAlignment(Pos.CENTER);
-        statBox.setPadding(new Insets(10));
-        statBox.getStyleClass().add("stat-item");
-
-        Label valueLabel = new Label(value);
-        valueLabel.setStyle("-fx-font-size: 24px; -fx-font-weight: bold; -fx-text-fill: " + color + ";");
-        Label labelText = new Label(label);
-        labelText.getStyleClass().add("stat-label");
-
-        statBox.getChildren().addAll(valueLabel, labelText);
-        return statBox;
     }
 
     private VBox createRenewalsTable() {
         VBox tableContainer = new VBox(10);
         tableContainer.getStyleClass().add("table-container");
 
-        // Table header
         HBox tableHeader = new HBox();
         tableHeader.getStyleClass().add("table-header");
         tableHeader.setPadding(new Insets(10));
 
-        Label statusCol = new Label(""); statusCol.setPrefWidth(50);
-        Label idCol = new Label("ID"); idCol.setPrefWidth(100);
-        Label nameCol = new Label("Name"); nameCol.setPrefWidth(200);
-        Label planCol = new Label("Plan"); planCol.setPrefWidth(150);
-        Label expiryCol = new Label("Expiry Date"); expiryCol.setPrefWidth(150);
-        Label daysCol = new Label("Days Until"); daysCol.setPrefWidth(120);
-        Label amountCol = new Label("Amount"); amountCol.setPrefWidth(120);
-        Label actionCol = new Label("Action"); actionCol.setPrefWidth(150);
+        Label[] cols = {
+            new Label(""), new Label("ID"), new Label("Name"), new Label("Plan"), 
+            new Label("Expiry"), new Label("Status"), new Label("Action")
+        };
+        int[] widths = {40, 80, 200, 120, 120, 150, 150};
+        for(int i=0; i<cols.length; i++) { cols[i].setPrefWidth(widths[i]); tableHeader.getChildren().add(cols[i]); }
 
-        tableHeader.getChildren().addAll(statusCol, idCol, nameCol, planCol, expiryCol, daysCol, amountCol, actionCol);
-
-        // ScrollPane for rows
-        ScrollPane scrollPane = new ScrollPane();
-        scrollPane.setFitToWidth(true);
-
-        // Initialize the row container
+        // We don't create a new ScrollPane here anymore, we just create the row container
+        // because 'RenewalsController' IS the scroll pane.
         tableRowsContainer = new VBox(5);
         tableRowsContainer.setPadding(new Insets(10));
 
-        // Load initial data
-        refreshTableRows();
-
-        scrollPane.setContent(tableRowsContainer);
-        tableContainer.getChildren().addAll(tableHeader, scrollPane);
-        VBox.setVgrow(scrollPane, Priority.ALWAYS);
-
+        tableContainer.getChildren().addAll(tableHeader, tableRowsContainer);
         return tableContainer;
     }
 
-    // NEW: Helper method to refresh just the rows
+    private void applyFilter(String filter) {
+        this.currentFilter = filter;
+        refreshTableRows();
+    }
+
+    private void refreshData() {
+        // 1. Calculate Stats using ALL members
+        List<Member> allMembers = memberService.getAllMembers();
+        LocalDate today = LocalDate.now();
+        LocalDate monthLater = today.plusDays(31); // 31 days covers the full month inclusive
+
+        long overdueCount = allMembers.stream()
+            .filter(m -> m.getExpiryDate().isBefore(today))
+            .count();
+            
+        long expiringCount = allMembers.stream()
+            .filter(m -> !m.getExpiryDate().isBefore(today) && !m.getExpiryDate().isAfter(monthLater)) // Inclusive check
+            .count();
+            
+        long totalPending = overdueCount + expiringCount;
+
+        // 2. Update UI Labels
+        statsTotalLabel.setText(String.valueOf(totalPending));
+        statsExpiringLabel.setText(String.valueOf(expiringCount));
+        statsOverdueLabel.setText(String.valueOf(overdueCount));
+
+        // 3. Populate Table
+        refreshTableRows();
+    }
     private void refreshTableRows() {
-        if (tableRowsContainer == null) return;
-        
         tableRowsContainer.getChildren().clear();
         List<MemberRenewalData> renewalsList = loadRealRenewals();
 
@@ -219,269 +219,79 @@ public class RenewalsController {
         }
     }
 
-    // UPDATED: Apply Filter only refreshes data, doesn't rebuild the whole view
-    private void applyFilter(String filter) {
-        this.currentFilter = filter;
-        refreshTableRows();
-    }
-
     private HBox createTableRow(MemberRenewalData member) {
         HBox row = new HBox();
-        row.getStyleClass().add("table-row");
-        row.setPadding(new Insets(10));
         row.setAlignment(Pos.CENTER_LEFT);
+        row.setPadding(new Insets(12, 10, 12, 10));
+        row.setStyle("-fx-border-color: transparent transparent #E2E8F0 transparent;");
 
-        Label statusIndicator = new Label("●");
-        statusIndicator.setPrefWidth(50);
-        statusIndicator.setAlignment(Pos.CENTER);
-        statusIndicator.setStyle("-fx-font-size: 20px; -fx-text-fill: " + member.getStatusColor() + ";");
+        Label dot = new Label("●"); dot.setPrefWidth(40); dot.setStyle("-fx-text-fill: " + member.getStatusColor() + "; -fx-font-size: 18px;");
+        Label id = new Label(member.memberId); id.setPrefWidth(80);
+        Label name = new Label(member.name); name.setPrefWidth(200); name.setStyle("-fx-font-weight: bold;");
+        Label plan = new Label(member.plan); plan.setPrefWidth(120);
+        Label date = new Label(member.expiryDate.format(DateTimeFormatter.ofPattern("MMM dd, yyyy"))); date.setPrefWidth(120);
+        Label status = new Label(member.getStatusText()); status.setPrefWidth(150); status.setStyle("-fx-text-fill: " + member.getStatusColor() + ";");
 
-        Label idLabel = new Label(member.memberId); idLabel.setPrefWidth(100);
-        Label nameLabel = new Label(member.name); nameLabel.setPrefWidth(200);
-        Label planLabel = new Label(member.plan); planLabel.setPrefWidth(150);
-        Label expiryLabel = new Label(member.expiryDate.format(DateTimeFormatter.ofPattern("MMM dd, yyyy"))); expiryLabel.setPrefWidth(150);
+        Button renewBtn = new Button("Renew");
+        renewBtn.getStyleClass().add("btn-sm");
+        renewBtn.getStyleClass().add("btn-primary");
+        renewBtn.setOnAction(e -> showRenewalDialog(member));
 
-        Label daysLabel = new Label(member.getStatusText());
-        daysLabel.setPrefWidth(120);
-        daysLabel.setStyle("-fx-text-fill: " + member.getStatusColor() + ";");
-
-        Label amountLabel = new Label(String.format("$%.2f", member.renewalAmount));
-        amountLabel.setPrefWidth(120);
-
-        Button renewButton = new Button("Renew");
-        renewButton.getStyleClass().add("btn-primary-small");
-        renewButton.setPrefWidth(130);
-        renewButton.setOnAction(e -> startRenewalProcess(member));
-
-        HBox actionBox = new HBox(renewButton);
-        actionBox.setPrefWidth(150);
-        actionBox.setAlignment(Pos.CENTER_LEFT);
-
-        row.getChildren().addAll(statusIndicator, idLabel, nameLabel, planLabel, expiryLabel, daysLabel, amountLabel, actionBox);
+        HBox actions = new HBox(renewBtn); actions.setPrefWidth(150);
+        row.getChildren().addAll(dot, id, name, plan, date, status, actions);
         return row;
     }
 
-    // ==================== RENEWAL PROCESS LOGIC ====================
+    // ==================== POPUP DIALOG (UX FIX) ====================
 
-    private void startRenewalProcess(MemberRenewalData member) {
-        currentRenewal = new RenewalData();
-        currentRenewal.memberId = member.memberId;
-        currentRenewal.memberName = member.name;
-        currentRenewal.memberEmail = member.email;
-        currentRenewal.currentPlan = member.plan;
-        currentRenewal.currentExpiry = member.expiryDate;
-        currentRenewal.renewalAmount = member.renewalAmount;
-        currentRenewal.discount = 0.0;
-        currentRenewal.selectedPlan = member.plan;
+    private void showRenewalDialog(MemberRenewalData m) {
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Process Renewal");
+        dialog.setHeaderText("Renew membership for " + m.name);
 
-        renewalProcessView = createRenewalWizard();
-        viewContainer.getChildren().clear();
-        viewContainer.getChildren().add(renewalProcessView);
-    }
+        GridPane grid = new GridPane();
+        grid.setHgap(20); grid.setVgap(15); grid.setPadding(new Insets(20));
 
-    private StackPane createRenewalWizard() {
-        StackPane wizardContainer = new StackPane();
-        wizardContainer.getStyleClass().add("renewal-wizard");
-        wizardContainer.getChildren().add(createStep1_ReviewConfirm());
-        return wizardContainer;
-    }
+        Label planLbl = new Label("Current Plan:");
+        ComboBox<String> planCombo = new ComboBox<>();
+        planCombo.getItems().addAll("Basic", "Premium", "Elite", "Student");
+        planCombo.setValue(m.plan); 
 
-    private VBox createStep1_ReviewConfirm() {
-        VBox container = new VBox(30);
-        container.setPadding(new Insets(30));
-        container.setAlignment(Pos.TOP_CENTER);
+        Label priceLbl = new Label("Price:");
+        Label priceVal = new Label("$" + String.format("%.2f", m.renewalAmount)); 
+        
+        planCombo.valueProperty().addListener((obs, old, newVal) -> {
+            priceVal.setText("$" + String.format("%.2f", getPlanPrice(newVal)));
+        });
 
-        VBox content = new VBox(20);
-        content.setPadding(new Insets(20));
-        content.setMaxWidth(800);
+        Label dateLbl = new Label("New Expiry:");
+        LocalDate newDate = m.expiryDate.isBefore(LocalDate.now()) ? LocalDate.now().plusMonths(1) : m.expiryDate.plusMonths(1);
+        Label dateVal = new Label(newDate.format(DateTimeFormatter.ofPattern("MMM dd, yyyy")));
 
-        content.getChildren().addAll(
-                createMemberInfoCard(),
-                createCurrentMembershipCard(),
-                createPlanSelectionCard(),
-                createPricingSummaryCard());
+        grid.add(planLbl, 0, 0); grid.add(planCombo, 1, 0);
+        grid.add(priceLbl, 0, 1); grid.add(priceVal, 1, 1);
+        grid.add(dateLbl, 0, 2); grid.add(dateVal, 1, 2);
 
-        ScrollPane scrollPane = new ScrollPane(content);
-        scrollPane.setFitToWidth(true);
-        VBox.setVgrow(scrollPane, Priority.ALWAYS);
+        dialog.getDialogPane().setContent(grid);
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
 
-        HBox navButtons = createNavigationButtons("Cancel", "Continue to Payment", e -> cancelRenewal(),
-                e -> showStep2_Payment());
-
-        container.getChildren().addAll(createWizardHeader("Renewal Review", "Step 1 of 3"), scrollPane, navButtons);
-        return container;
-    }
-
-    private VBox createStep2_Payment() {
-        VBox container = new VBox(30);
-        container.setPadding(new Insets(30));
-        container.setAlignment(Pos.TOP_CENTER);
-
-        VBox content = new VBox(20);
-        content.setPadding(new Insets(20));
-        content.setMaxWidth(800);
-
-        content.getChildren().addAll(createInvoiceCard(), createPaymentMethodCard());
-
-        ScrollPane scrollPane = new ScrollPane(content);
-        scrollPane.setFitToWidth(true);
-        VBox.setVgrow(scrollPane, Priority.ALWAYS);
-
-        HBox navButtons = createNavigationButtons("Back", "Process Payment", e -> showStep1_ReviewConfirm(),
-                e -> processRenewalPayment());
-
-        container.getChildren().addAll(createWizardHeader("Payment", "Step 2 of 3"), scrollPane, navButtons);
-        return container;
-    }
-
-    private void showStep1_ReviewConfirm() {
-        VBox step1 = createStep1_ReviewConfirm();
-        renewalProcessView.getChildren().clear();
-        renewalProcessView.getChildren().add(step1);
-    }
-
-    private void showStep2_Payment() {
-        VBox step2 = createStep2_Payment();
-        renewalProcessView.getChildren().clear();
-        renewalProcessView.getChildren().add(step2);
-    }
-
-    private void processRenewalPayment() {
-        try {
-            memberService.renewMembership(currentRenewal.memberId, currentRenewal.selectedPlan);
-
-            // Update local data for display
-            currentRenewal.newExpiry = currentRenewal.currentExpiry.isBefore(LocalDate.now())
-                    ? LocalDate.now().plusMonths(1)
-                    : currentRenewal.currentExpiry.plusMonths(1);
-
-            VBox step3 = createStep3_Confirmation();
-            renewalProcessView.getChildren().clear();
-            renewalProcessView.getChildren().add(step3);
-
-        } catch (Exception e) {
-            e.printStackTrace();
-            Alert alert = new Alert(Alert.AlertType.ERROR);
-            alert.setContentText("Renewal failed: " + e.getMessage());
-            alert.showAndWait();
+        Optional<ButtonType> result = dialog.showAndWait();
+        if (result.isPresent() && result.get() == ButtonType.OK) {
+            try {
+                memberService.renewMembership(m.memberId, planCombo.getValue());
+                Alert a = new Alert(Alert.AlertType.INFORMATION);
+                a.setTitle("Success"); a.setHeaderText("Membership Renewed");
+                a.showAndWait();
+                refreshData(); // Refresh logic
+            } catch (Exception e) {
+                Alert a = new Alert(Alert.AlertType.ERROR);
+                a.setContentText(e.getMessage());
+                a.showAndWait();
+            }
         }
     }
 
-    private VBox createStep3_Confirmation() {
-        VBox container = new VBox(30);
-        container.setPadding(new Insets(30));
-        container.setAlignment(Pos.CENTER);
-
-        Label successIcon = new Label("✓");
-        successIcon.setStyle("-fx-font-size: 80px; -fx-text-fill: #10B981;");
-        Label successTitle = new Label("Renewal Successful!");
-        successTitle.setStyle("-fx-font-size: 28px; -fx-font-weight: bold; -fx-text-fill: #10B981;");
-
-        Button doneButton = new Button("Done");
-        doneButton.getStyleClass().add("btn-primary");
-        doneButton.setPrefWidth(150);
-        doneButton.setOnAction(e -> returnToPendingRenewals());
-
-        container.getChildren().addAll(successIcon, successTitle, createRenewalDetailsCard(), doneButton);
-        return container;
-    }
-
-    private void cancelRenewal() {
-        returnToPendingRenewals();
-    }
-
-    private void returnToPendingRenewals() {
-        currentRenewal = null;
-        viewContainer.getChildren().clear();
-        // Re-create the view, this is fine here because we are exiting the wizard
-        pendingRenewalsView = createPendingRenewalsView();
-        viewContainer.getChildren().add(pendingRenewalsView);
-    }
-
-    // ==================== HELPER COMPONENTS ====================
-
-    private VBox createWizardHeader(String title, String subtitle) {
-        VBox header = new VBox(5);
-        header.setAlignment(Pos.CENTER);
-        Label t = new Label(title); t.setStyle("-fx-font-size: 24px; -fx-font-weight: bold;");
-        Label s = new Label(subtitle); s.setStyle("-fx-text-fill: #6B7280;");
-        header.getChildren().addAll(t, s);
-        return header;
-    }
-
-    private VBox createMemberInfoCard() {
-        VBox card = new VBox(15);
-        card.setStyle("-fx-background-color: white; -fx-padding: 20; -fx-background-radius: 8; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.1), 10, 0, 0, 0);");
-        GridPane grid = new GridPane(); grid.setHgap(20); grid.setVgap(10);
-        addInfoRow(grid, 0, "Member ID:", currentRenewal.memberId);
-        addInfoRow(grid, 1, "Name:", currentRenewal.memberName);
-        addInfoRow(grid, 2, "Email:", currentRenewal.memberEmail);
-        card.getChildren().addAll(new Label("Member Info"), grid);
-        return card;
-    }
-
-    private VBox createCurrentMembershipCard() {
-        VBox card = new VBox(15);
-        card.setStyle("-fx-background-color: white; -fx-padding: 20; -fx-background-radius: 8; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.1), 10, 0, 0, 0);");
-        GridPane grid = new GridPane(); grid.setHgap(20); grid.setVgap(10);
-        addInfoRow(grid, 0, "Plan:", currentRenewal.currentPlan);
-        addInfoRow(grid, 1, "Expires:", currentRenewal.currentExpiry.format(DateTimeFormatter.ofPattern("MMM dd, yyyy")));
-        card.getChildren().addAll(new Label("Current Membership"), grid);
-        return card;
-    }
-
-    private VBox createPlanSelectionCard() {
-        VBox card = new VBox(15);
-        card.setStyle("-fx-background-color: white; -fx-padding: 20; -fx-background-radius: 8; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.1), 10, 0, 0, 0);");
-        ToggleGroup grp = new ToggleGroup();
-        RadioButton keep = new RadioButton("Keep " + currentRenewal.currentPlan); keep.setToggleGroup(grp); keep.setSelected(true);
-        keep.setOnAction(e -> { currentRenewal.selectedPlan = currentRenewal.currentPlan; currentRenewal.renewalAmount = getPlanPrice(currentRenewal.currentPlan); });
-        RadioButton upgrade = new RadioButton("Upgrade to Premium ($49.99)"); upgrade.setToggleGroup(grp);
-        upgrade.setOnAction(e -> { currentRenewal.selectedPlan = "Premium"; currentRenewal.renewalAmount = 49.99; });
-        card.getChildren().addAll(new Label("Select Plan"), keep, upgrade);
-        return card;
-    }
-
-    private VBox createPricingSummaryCard() {
-        VBox card = new VBox(15);
-        card.setStyle("-fx-background-color: #F3F4F6; -fx-padding: 20; -fx-background-radius: 8;");
-        currentRenewal.totalAmount = currentRenewal.renewalAmount * 1.08;
-        card.getChildren().addAll(new Label("Total Due: $" + String.format("%.2f", currentRenewal.totalAmount)));
-        return card;
-    }
-
-    private VBox createInvoiceCard() {
-        VBox card = new VBox(15);
-        card.setStyle("-fx-background-color: white; -fx-padding: 20; -fx-background-radius: 8;");
-        card.getChildren().add(new Label("Invoice Amount: $" + String.format("%.2f", currentRenewal.totalAmount)));
-        return card;
-    }
-
-    private VBox createPaymentMethodCard() {
-        VBox card = new VBox(15);
-        card.setStyle("-fx-background-color: white; -fx-padding: 20; -fx-background-radius: 8;");
-        card.getChildren().addAll(new Label("Payment Method"), new RadioButton("Credit Card"), new TextField("Card Number..."));
-        return card;
-    }
-
-    private VBox createRenewalDetailsCard() {
-        VBox card = new VBox(15);
-        card.setStyle("-fx-background-color: #F0FDF4; -fx-padding: 20;");
-        card.getChildren().add(new Label("New Expiry: " + currentRenewal.newExpiry));
-        return card;
-    }
-
-    private void addInfoRow(GridPane grid, int row, String label, String value) {
-        grid.add(new Label(label), 0, row); grid.add(new Label(value), 1, row);
-    }
-
-    private HBox createNavigationButtons(String backText, String nextText, javafx.event.EventHandler<javafx.event.ActionEvent> back, javafx.event.EventHandler<javafx.event.ActionEvent> next) {
-        HBox box = new HBox(15); box.setAlignment(Pos.CENTER);
-        Button b1 = new Button(backText); b1.getStyleClass().add("btn-secondary"); b1.setOnAction(back);
-        Button b2 = new Button(nextText); b2.getStyleClass().add("btn-primary"); b2.setOnAction(next);
-        box.getChildren().addAll(b1, b2);
-        return box;
-    }
+    // ==================== HELPERS ====================
 
     private double getPlanPrice(String plan) {
         return switch (plan) {
@@ -516,6 +326,7 @@ public class RenewalsController {
         return renewalList;
     }
 
+    // Simple DTO for the table row
     private static class MemberRenewalData {
         String memberId, name, email, plan;
         LocalDate expiryDate;
@@ -523,15 +334,15 @@ public class RenewalsController {
 
         String getStatusText() {
             long d = ChronoUnit.DAYS.between(LocalDate.now(), expiryDate);
-            return d < 0 ? "Expired " + Math.abs(d) + "d ago" : d + " days";
+            return d < 0 ? "Expired" : d + " days";
         }
-
         String getStatusColor() {
             long d = ChronoUnit.DAYS.between(LocalDate.now(), expiryDate);
             return d < 0 ? "#EF4444" : (d <= 7 ? "#F59E0B" : "#10B981");
         }
     }
-
+    
+    // Deprecated Internal Class needed only if legacy code refrences it
     private static class RenewalData {
         String memberId, memberName, memberEmail, currentPlan, selectedPlan, paymentMethod, transactionId;
         LocalDate currentExpiry, newExpiry;

@@ -141,12 +141,21 @@ public class MemberServiceImpl implements MemberService {
         return visit;
     }
 
-    @Override
+@Override
     public void checkOutMember(String memberId) {
         Attendance activeVisit = attendanceRepo.findActiveVisitByMemberId(memberId);
-        if (activeVisit == null)
+        
+        if (activeVisit == null) {
             throw new IllegalStateException("Member is not currently checked in.");
+        }
+
+        // 1. Update the object (RAM)
         activeVisit.setCheckOutTime(java.time.LocalDateTime.now());
+        
+        // 2. CRITICAL FIX: Save changes to Database (Disk)
+        attendanceRepo.save(activeVisit); 
+        
+        System.out.println("Service: Checked out " + memberId);
     }
 
     @Override

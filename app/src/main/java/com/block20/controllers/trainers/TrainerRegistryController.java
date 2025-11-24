@@ -368,7 +368,7 @@ public class TrainerRegistryController extends ScrollPane {
                     return;
                 }
                 try {
-                    Trainer trainer = trainerService.registerTrainer(
+                    trainerService.registerTrainer(
                         firstName,
                         lastName,
                         email,
@@ -378,7 +378,7 @@ public class TrainerRegistryController extends ScrollPane {
                         hireDatePicker.getValue(),
                         notesArea.getText()
                     );
-                    showAlert(Alert.AlertType.INFORMATION, "Trainer Registered", "Trainer ID: " + trainer.getTrainerId());
+                    showAlert(Alert.AlertType.INFORMATION, "Trainer Registered", "Trainer " + firstName + " " + lastName + " has been registered successfully.");
                     searchField.clear();
                     refreshTrainerData();
                 } catch (IllegalArgumentException ex) {

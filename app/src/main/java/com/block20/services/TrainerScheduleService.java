@@ -35,4 +35,6 @@ public interface TrainerScheduleService {
     Optional<TrainingSession> getSessionById(String sessionId);
 
     List<TrainingSession> getSessionsForMember(String memberId);
+    // NEW: Check if a specific slot is free
+    boolean isSlotAvailable(String trainerId, LocalDate date, LocalTime startTime, int durationMinutes);
 }

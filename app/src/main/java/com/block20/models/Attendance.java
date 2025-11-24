@@ -27,4 +27,8 @@ public class Attendance {
     public void setCheckOutTime(LocalDateTime checkOutTime) { 
         this.checkOutTime = checkOutTime; 
     }
+
+    public void setCheckInTime(LocalDateTime localDateTime) {
+        this.checkInTime = localDateTime;
+    }
 }

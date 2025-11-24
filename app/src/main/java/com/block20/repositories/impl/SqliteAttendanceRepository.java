@@ -32,17 +32,40 @@ public class SqliteAttendanceRepository implements AttendanceRepository {
         return query("SELECT * FROM attendance WHERE member_id = '" + memberId + "'");
     }
 
-    @Override
+@Override
     public Attendance findActiveVisitByMemberId(String memberId) {
-        List<Attendance> list = query("SELECT * FROM attendance WHERE member_id = '" + memberId + "' AND check_out_time IS NULL");
-        return list.isEmpty() ? null : list.get(0);
+        // FIX: Added 'COLLATE NOCASE' to ignore M1001 vs m1001 differences
+        String sql = "SELECT * FROM attendance WHERE member_id = ? COLLATE NOCASE AND (check_out_time IS NULL OR check_out_time = '' OR check_out_time = 'null')";
+        
+        try (Connection conn = DatabaseConnection.getConnection(); 
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            
+            stmt.setString(1, memberId);
+            ResultSet rs = stmt.executeQuery();
+            
+            if (rs.next()) {
+                Attendance a = new Attendance(
+                    rs.getString("visit_id"), 
+                    rs.getString("member_id"), 
+                    rs.getString("member_name")
+                );
+                // Manually map the check-in time since constructor sets it to NOW
+                if (rs.getString("check_in_time") != null) {
+                    a.setCheckInTime(java.time.LocalDateTime.parse(rs.getString("check_in_time")));
+                }
+                return a;
+            }
+        } catch (SQLException e) { 
+            e.printStackTrace(); 
+        }
+        return null;
     }
-
-    @Override
+@Override
     public int countActiveVisits() {
+        String sql = "SELECT COUNT(*) FROM attendance WHERE check_out_time IS NULL OR check_out_time = ''";
         try (Connection conn = DatabaseConnection.getConnection(); 
              Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM attendance WHERE check_out_time IS NULL")) {
+             ResultSet rs = stmt.executeQuery(sql)) {
             if (rs.next()) return rs.getInt(1);
         } catch (SQLException e) { e.printStackTrace(); }
         return 0;

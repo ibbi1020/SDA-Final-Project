@@ -214,10 +214,10 @@ public class StaffPortalView {
     /**
      * Show renewals view (pending renewals + renewal processing)
      */
-    private void showRenewals() {
-        // PASS THE SERVICE
+private void showRenewals() {
+        // FIX: Removed .getView() because controller extends ScrollPane
         RenewalsController renewalsController = new RenewalsController(this::handleNavigation, this.memberService);
-        setContent(renewalsController.getView()); // Note: check if your controller extends Region or has getView()
+        setContent(renewalsController); 
     }
 
     /**
@@ -253,10 +253,10 @@ public class StaffPortalView {
     /**
      * Show maintenance schedule view
      */
-    private void showEquipmentMaintenance() {
-        MaintenanceScheduleController maintenanceScheduleController = new MaintenanceScheduleController(
-                this::handleNavigation);
-        setContent(maintenanceScheduleController);
+private void showEquipmentMaintenance() {
+        // FIX: Now passing equipmentService
+        MaintenanceScheduleController controller = new MaintenanceScheduleController(this::handleNavigation, this.equipmentService);
+        setContent(controller);
     }
 
     /**
