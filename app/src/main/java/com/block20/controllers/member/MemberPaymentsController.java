@@ -4,10 +4,12 @@
  */
 package com.block20.controllers.member;
 
+import com.block20.facade.MemberAccountFacade;
+import com.block20.facade.MemberAccountFacade.PaymentSnapshot;
 import com.block20.models.PaymentPlan;
+import com.block20.models.PaymentPlan.Installment;
+import com.block20.models.PaymentRequest;
 import com.block20.models.Transaction;
-import com.block20.services.MemberService;
-import com.block20.services.PaymentService;
 
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -24,8 +26,7 @@ public class MemberPaymentsController extends ScrollPane {
     
     // Dependencies
     private final String memberId;
-    private final MemberService memberService;
-    private final PaymentService paymentService;
+    private final MemberAccountFacade accountFacade;
     
     // UI Components
     private VBox contentContainer;
@@ -35,11 +36,9 @@ public class MemberPaymentsController extends ScrollPane {
     private VBox planList;
     
     public MemberPaymentsController(String memberId,
-                                    MemberService memberService,
-                                    PaymentService paymentService) {
+                                    MemberAccountFacade accountFacade) {
         this.memberId = memberId;
-        this.memberService = memberService;
-        this.paymentService = paymentService;
+        this.accountFacade = accountFacade;
         initializeView();
         refreshData();
     }
@@ -151,9 +150,12 @@ public class MemberPaymentsController extends ScrollPane {
     }
     
     private void refreshData() {
-        // 1. Fetch Real Transactions from SQLite
-        List<Transaction> transactions = memberService.getTransactionsForMember(memberId);
-        
+        PaymentSnapshot snapshot = accountFacade != null
+            ? accountFacade.getPaymentSnapshot(memberId)
+            : MemberAccountFacade.PaymentSnapshot.empty();
+
+        List<Transaction> transactions = snapshot.getTransactions();
+
         // 2. Update History List
         historyList.getChildren().clear();
         
@@ -162,24 +164,16 @@ public class MemberPaymentsController extends ScrollPane {
             empty.getStyleClass().add("text-muted");
             historyList.getChildren().add(empty);
         } else {
-            // Sort by date if needed, or assume DB order
             for (Transaction txn : transactions) {
                 historyList.getChildren().add(createHistoryRow(txn));
             }
         }
         
         // 3. Update Totals
-        double totalPaid = transactions.stream().mapToDouble(Transaction::getAmount).sum();
-        totalPaidValue.setText(String.format("$%.2f", totalPaid));
+        totalPaidValue.setText(String.format("$%.2f", snapshot.getTotalPaid()));
+        balanceValue.setText(String.format("$%.2f", snapshot.getOutstandingBalance()));
 
-        double outstanding = paymentService != null
-            ? paymentService.getOutstandingBalance(memberId)
-            : 0.0;
-        balanceValue.setText(String.format("$%.2f", outstanding));
-
-        List<PaymentPlan> plans = paymentService != null
-            ? paymentService.getActivePlans(memberId)
-            : List.of();
+        List<PaymentPlan> plans = snapshot.getActivePlans();
         updatePlanList(plans);
     }
     
@@ -242,7 +236,7 @@ public class MemberPaymentsController extends ScrollPane {
         double outstanding = plan.getOutstandingAmount();
         long totalInstallments = plan.getInstallments().size();
         long paidInstallments = plan.getInstallments().stream().filter(PaymentPlan.Installment::isPaid).count();
-        PaymentPlan.Installment nextDue = plan.getInstallments().stream()
+        Installment nextDue = plan.getInstallments().stream()
                 .filter(i -> !i.isPaid())
                 .min(Comparator.comparing(PaymentPlan.Installment::getDueDate))
                 .orElse(null);
@@ -263,6 +257,50 @@ public class MemberPaymentsController extends ScrollPane {
         progress.getStyleClass().add("text-muted");
 
         card.getChildren().addAll(header, amountLabel, nextDueLabel, progress);
+
+        if (nextDue != null) {
+            Button payButton = new Button("Pay Next Installment");
+            payButton.getStyleClass().addAll("btn", "btn-primary");
+            payButton.setOnAction(e -> handleInstallmentPayment(plan, nextDue));
+            card.getChildren().add(payButton);
+        }
         return card;
+    }
+
+    private void handleInstallmentPayment(PaymentPlan plan, Installment installment) {
+        if (plan == null || installment == null || installment.isPaid()) {
+            return;
+        }
+        try {
+            PaymentRequest request = new PaymentRequest(
+                memberId,
+                installment.getAmount(),
+                0.0,
+                "Installment Payment - " + plan.getPlanId(),
+                "Cash",
+                null
+            );
+            accountFacade.recordInstallmentPayment(
+                plan.getPlanId(),
+                installment.getInstallmentId(),
+                request
+            );
+            refreshData();
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.setTitle("Payment Recorded");
+            alert.setHeaderText("Installment Paid");
+            alert.setContentText(String.format(
+                "$%.2f applied to plan %s",
+                installment.getAmount(),
+                plan.getPlanId()
+            ));
+            alert.showAndWait();
+        } catch (Exception ex) {
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.setTitle("Payment Failed");
+            alert.setHeaderText("Unable to record installment");
+            alert.setContentText(ex.getMessage());
+            alert.showAndWait();
+        }
     }
 }

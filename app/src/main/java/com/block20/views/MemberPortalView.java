@@ -5,8 +5,8 @@
 package com.block20.views;
 
 import com.block20.controllers.member.*;
+import com.block20.facade.MemberAccountFacade;
 import com.block20.services.MemberService;
-import com.block20.services.PaymentService;
 import com.block20.services.TrainerScheduleService;
 import com.block20.services.TrainerService;
 import javafx.geometry.Insets;
@@ -30,24 +30,24 @@ public class MemberPortalView {
     private String memberName;
     private Consumer<String> onLogout;
     private final MemberService memberService;
-    private final PaymentService paymentService;
     private final TrainerService trainerService;
     private final TrainerScheduleService trainerScheduleService;
+    private final MemberAccountFacade memberAccountFacade;
     
     public MemberPortalView(String memberId,
                             String memberName,
                             Consumer<String> onLogout,
                             MemberService memberService,
-                            PaymentService paymentService,
                             TrainerService trainerService,
-                            TrainerScheduleService trainerScheduleService) {
+                            TrainerScheduleService trainerScheduleService,
+                            MemberAccountFacade memberAccountFacade) {
         this.memberId = memberId;
         this.memberName = memberName != null ? memberName : "Member";
         this.onLogout = onLogout;
         this.memberService = memberService;
-        this.paymentService = paymentService;
         this.trainerService = trainerService;
         this.trainerScheduleService = trainerScheduleService;
+        this.memberAccountFacade = memberAccountFacade;
         initializeView();
     }
     
@@ -234,8 +234,11 @@ public class MemberPortalView {
      * Show membership management (renewals, plan info)
      */
 private void showMembership() {
-    // FIX: Added memberService
-    MemberMembershipController membershipController = new MemberMembershipController(memberId, this::handleNavigation, this.memberService);
+    MemberMembershipController membershipController = new MemberMembershipController(
+            memberId,
+            this::handleNavigation,
+            this.memberService,
+            this.memberAccountFacade);
     setContent(membershipController);
 }
     
@@ -259,8 +262,7 @@ private void showMembership() {
  private void showPayments() {
     MemberPaymentsController paymentsController = new MemberPaymentsController(
             memberId,
-            this.memberService,
-            this.paymentService);
+        this.memberAccountFacade);
     setContent(paymentsController);
 }
     /**

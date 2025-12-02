@@ -6,6 +6,7 @@ package com.block20;
 
 import com.block20.models.Member;
 import com.block20.models.Trainer;
+import com.block20.facade.MemberAccountFacade;
 import com.block20.repositories.*;
 import com.block20.repositories.impl.*;
 import com.block20.services.*;
@@ -35,6 +36,7 @@ public class App extends Application {
     private TrainerScheduleService trainerScheduleService;
     private PaymentService paymentService;
     private NotificationService notificationService;
+    private MemberAccountFacade memberAccountFacade;
     
     @Override
     public void start(Stage primaryStage) {
@@ -78,6 +80,7 @@ public class App extends Application {
             paymentGateway,
             paymentReceiptRepo
         );
+        this.memberAccountFacade = new MemberAccountFacade(this.memberService, this.paymentService);
 
         // ============================================================
         // 3. SEED ALL DATA
@@ -193,9 +196,9 @@ public class App extends Application {
             memberName,
             this::handleLogout,
             this.memberService,
-            this.paymentService,
             this.trainerService,
-            this.trainerScheduleService
+            this.trainerScheduleService,
+            this.memberAccountFacade
         );
         scene = new Scene(memberPortal.getView(), 1400, 900);
         String css = getClass().getResource("/com/block20/styles/main.css").toExternalForm();

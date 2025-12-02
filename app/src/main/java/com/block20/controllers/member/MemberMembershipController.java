@@ -4,6 +4,7 @@
  */
 package com.block20.controllers.member;
 
+import com.block20.facade.MemberAccountFacade;
 import com.block20.models.Member;
 import com.block20.services.MemberService;
 
@@ -26,6 +27,7 @@ public class MemberMembershipController extends ScrollPane {
     private String memberId;
     private Consumer<String> navigationHandler;
     private MemberService memberService;
+    private final MemberAccountFacade memberAccountFacade;
     
     // Renewal wizard state
     private String selectedPlan = null;
@@ -33,10 +35,14 @@ public class MemberMembershipController extends ScrollPane {
     // Data storage (View Model)
     private MembershipData currentMembership;
     
-    public MemberMembershipController(String memberId, Consumer<String> navigationHandler, MemberService memberService) {
+    public MemberMembershipController(String memberId,
+                                      Consumer<String> navigationHandler,
+                                      MemberService memberService,
+                                      MemberAccountFacade memberAccountFacade) {
         this.memberId = memberId;
         this.navigationHandler = navigationHandler;
         this.memberService = memberService;
+        this.memberAccountFacade = memberAccountFacade;
         
         loadRealData(); // Fetch from DB
         initializeView();
@@ -264,7 +270,7 @@ public class MemberMembershipController extends ScrollPane {
             // 1. Call Backend
             // Note: memberService.renewMembership extends by 1 month automatically
             // It also records the Transaction in SQLite
-            memberService.renewMembership(memberId, currentMembership.plan);
+            memberAccountFacade.renewMembership(memberId, currentMembership.plan);
             
             // 2. Refresh Data
             loadRealData();
