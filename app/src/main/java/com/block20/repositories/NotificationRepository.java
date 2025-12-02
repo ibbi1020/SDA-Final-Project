@@ -7,4 +7,5 @@ public interface NotificationRepository {
     void save(AppNotification notification);
     List<AppNotification> getRecentNotifications();
     int getUnreadCount();
+    void markAsRead(String notificationId);
 }

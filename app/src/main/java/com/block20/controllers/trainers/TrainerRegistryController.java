@@ -283,8 +283,12 @@ public class TrainerRegistryController extends ScrollPane {
         Button viewButton = new Button("View");
         viewButton.getStyleClass().add("btn-primary-small");
         viewButton.setOnAction(e -> showTrainerProfile(trainer));
+
+        Button deleteButton = new Button("Delete");
+        deleteButton.getStyleClass().add("btn-danger-small");
+        deleteButton.setOnAction(e -> confirmTrainerRemoval(trainer));
         
-        actionBox.getChildren().addAll(viewButton);
+        actionBox.getChildren().addAll(viewButton, deleteButton);
         
         row.getChildren().addAll(idLabel, nameLabel, specializationLabel, statusBadge, certLabel, sessionsLabel, actionBox);
         
@@ -512,5 +516,27 @@ public class TrainerRegistryController extends ScrollPane {
         alert.setHeaderText(null);
         alert.setContentText(message);
         alert.showAndWait();
+    }
+
+    private void confirmTrainerRemoval(Trainer trainer) {
+        if (trainer == null) {
+            return;
+        }
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+        confirm.setTitle("Remove Trainer");
+        confirm.setHeaderText(trainer.getFullName() + " (" + trainer.getTrainerId() + ")");
+        confirm.setContentText("This will remove the trainer and related schedules. Continue?");
+
+        confirm.showAndWait().ifPresent(response -> {
+            if (response == ButtonType.OK) {
+                try {
+                    trainerService.deleteTrainer(trainer.getTrainerId());
+                    showAlert(Alert.AlertType.INFORMATION, "Trainer Removed", trainer.getFullName() + " has been removed.");
+                    refreshTrainerData();
+                } catch (Exception ex) {
+                    showAlert(Alert.AlertType.ERROR, "Could not remove trainer", ex.getMessage());
+                }
+            }
+        });
     }
 }

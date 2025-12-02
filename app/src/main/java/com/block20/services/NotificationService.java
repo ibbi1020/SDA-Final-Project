@@ -11,4 +11,5 @@ public interface NotificationService {
     // --- ADD THESE MISSING METHODS ---
     List<AppNotification> getNotifications();
     int getUnreadCount();
+    void markAsRead(String notificationId);
 }

@@ -6,7 +6,9 @@ package com.block20.controllers.member;
 
 import com.block20.models.Attendance;
 import com.block20.models.Member;
+import com.block20.models.TrainingSession;
 import com.block20.services.MemberService;
+import com.block20.services.TrainerScheduleService;
 
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -19,6 +21,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 import java.util.function.Consumer;
 
 /**
@@ -31,18 +34,24 @@ public class MemberDashboardController extends ScrollPane {
     private String memberName;
     private Consumer<String> navigationHandler;
     
-    // NEW: Service Dependency
+    // Service Dependencies
     private MemberService memberService;
+    private TrainerScheduleService trainerScheduleService;
     
     // Data storage
     private Member memberData;
     
     // UPDATED: Constructor accepts MemberService
-    public MemberDashboardController(String memberId, String memberName, Consumer<String> navigationHandler, MemberService memberService) {
+    public MemberDashboardController(String memberId,
+                                     String memberName,
+                                     Consumer<String> navigationHandler,
+                                     MemberService memberService,
+                                     TrainerScheduleService trainerScheduleService) {
         this.memberId = memberId;
         this.memberName = memberName;
         this.navigationHandler = navigationHandler;
         this.memberService = memberService;
+        this.trainerScheduleService = trainerScheduleService;
         
         loadRealData(); // <--- NEW: Load from DB
         initializeView();
@@ -74,7 +83,7 @@ public class MemberDashboardController extends ScrollPane {
                 createHeader(),
                 createMembershipStatusCard(),
                 createQuickActionsSection(),
-                createUpcomingSessionsSection(), // Keeps mock sessions for now (Partner B domain)
+                createUpcomingSessionsSection(),
                 createRecentActivitySection()    // <--- NEW: Real Attendance History
             );
         } else {
@@ -306,16 +315,91 @@ public class MemberDashboardController extends ScrollPane {
         return card;
     }
 
-    // Keeps the mock session section for now (Partner B needs to implement real sessions)
     private VBox createUpcomingSessionsSection() {
         VBox section = new VBox(16);
-        Text t = new Text("Upcoming Sessions (Mock Data)");
-        t.getStyleClass().add("text-h3");
-        section.getChildren().add(t);
-        // Placeholder logic preserved
+        Text heading = new Text("Upcoming Sessions");
+        heading.getStyleClass().add("text-h3");
+
+        VBox sessionsList = new VBox(10);
+        sessionsList.getStyleClass().add("card");
+        sessionsList.setPadding(new Insets(16));
+
+        populateUpcomingSessions(sessionsList);
+
+        section.getChildren().addAll(heading, sessionsList);
         return section;
     }
+
+    private void populateUpcomingSessions(VBox container) {
+        container.getChildren().clear();
+
+        if (trainerScheduleService == null) {
+            Label unavailable = new Label("Session schedule service is unavailable right now.");
+            unavailable.getStyleClass().add("text-muted");
+            container.getChildren().add(unavailable);
+            return;
+        }
+
+        List<TrainingSession> upcoming = trainerScheduleService.getSessionsForMember(memberId).stream()
+                .filter(session -> session.getSessionDate() != null)
+                .filter(session -> !session.getSessionDate().isBefore(LocalDate.now()))
+                .filter(session -> session.getStatus() == null || !session.getStatus().equalsIgnoreCase("Cancelled"))
+                .sorted(Comparator
+                        .comparing(TrainingSession::getSessionDate)
+                        .thenComparing(TrainingSession::getStartTime,
+                                Comparator.nullsLast(Comparator.naturalOrder())))
+                .limit(3)
+                .collect(Collectors.toList());
+
+        if (upcoming.isEmpty()) {
+            Label empty = new Label("No upcoming sessions scheduled yet.");
+            empty.getStyleClass().add("text-muted");
+            container.getChildren().add(empty);
+            return;
+        }
+
+        for (TrainingSession session : upcoming) {
+            container.getChildren().add(createUpcomingSessionCard(session));
+        }
+    }
     
+    private HBox createUpcomingSessionCard(TrainingSession session) {
+        HBox card = new HBox(12);
+        card.setAlignment(Pos.CENTER_LEFT);
+        card.setPadding(new Insets(12));
+        card.setStyle("-fx-background-color: white; -fx-border-color: #E2E8F0; -fx-border-radius: 8;");
+
+        VBox dateBox = new VBox(2);
+        dateBox.setAlignment(Pos.CENTER);
+        dateBox.setPrefWidth(70);
+        dateBox.setStyle("-fx-background-color: #EEF2FF; -fx-background-radius: 8; -fx-padding: 8 0;");
+        Text month = new Text(session.getSessionDate().format(DateTimeFormatter.ofPattern("MMM")));
+        Text day = new Text(session.getSessionDate().format(DateTimeFormatter.ofPattern("dd")));
+        day.setStyle("-fx-font-size: 18px; -fx-font-weight: bold;");
+        dateBox.getChildren().addAll(month, day);
+
+        VBox details = new VBox(4);
+        details.setAlignment(Pos.CENTER_LEFT);
+        Text title = new Text(session.getSessionType());
+        title.setStyle("-fx-font-weight: 600;");
+        String timeText = session.getStartTime() != null
+                ? session.getStartTime().format(DateTimeFormatter.ofPattern("h:mm a"))
+                : "Time TBD";
+        Text meta = new Text("with " + session.getTrainerName() + " • " + timeText);
+        meta.getStyleClass().add("text-muted");
+        details.getChildren().addAll(title, meta);
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        Label status = new Label(session.getStatus() == null ? "Scheduled" : session.getStatus());
+        status.getStyleClass().add("badge");
+        status.setStyle("-fx-background-color: #DBEAFE; -fx-text-fill: #1D4ED8;");
+
+        card.getChildren().addAll(dateBox, details, spacer, status);
+        return card;
+    }
+
     // Helper for creating Payment Summary (retained structure, but empty for now)
     private VBox createPaymentSummarySection() {
         return new VBox(); // Hidden until we link Payment Service

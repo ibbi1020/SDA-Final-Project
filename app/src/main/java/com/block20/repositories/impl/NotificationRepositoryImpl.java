@@ -25,4 +25,15 @@ public class NotificationRepositoryImpl implements NotificationRepository {
     public int getUnreadCount() {
         return (int) storage.stream().filter(n -> !n.isRead()).count();
     }
+
+    @Override
+    public void markAsRead(String notificationId) {
+        if (notificationId == null) {
+            return;
+        }
+        storage.stream()
+                .filter(n -> notificationId.equals(n.getId()))
+                .findFirst()
+                .ifPresent(AppNotification::markRead);
+    }
 }

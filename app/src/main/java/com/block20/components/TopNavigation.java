@@ -149,13 +149,14 @@ private void initializeView() {
                 
                 box.getChildren().addAll(t, m, tm);
                 
-                // Highlight unread
+                // Highlight unread and persist read state on open
                 if (!note.isRead()) {
                     box.setStyle("-fx-background-color: #EFF6FF;");
+                    note.markRead();
+                    if (notificationService != null) {
+                        notificationService.markAsRead(note.getId());
+                    }
                 }
-                
-                // Mark as read logic
-                note.markRead();
                 
                 CustomMenuItem item = new CustomMenuItem(box);
                 item.setHideOnClick(false); 

@@ -99,7 +99,7 @@ public class App extends Application {
         if (memberService.getAllMembers().isEmpty()) {
             System.out.println("Seeding Members...");
             try {
-                // Pakistani Mock Data
+                //  Seeded sample data
                 Member bilal = memberService.registerMember("Bilal Ahmed", "bilal.ahmed@nust.edu.pk", "300-123-4567", "Student", "H-12 Campus, Islamabad", "Ahmed Khan", "300-987-6543", "Father");
                 Member ayesha = memberService.registerMember("Ayesha Malik", "ayesha.m@gmail.com", "321-555-7890", "Premium", "DHA Phase 6, Lahore", "Saad Malik", "321-555-0000", "Spouse");
                 Member hamza = memberService.registerMember("Hamza Khan", "hamza.beast@hotmail.com", "333-444-5555", "Elite", "Clifton, Karachi", "Kamran Khan", "333-111-2222", "Brother");

@@ -7,6 +7,7 @@ package com.block20.controllers.trainers;
 import com.block20.models.Trainer;
 import com.block20.models.TrainerAvailabilitySlot;
 import com.block20.models.TrainingSession;
+import com.block20.services.MemberService;
 import com.block20.services.TrainerScheduleService;
 import com.block20.services.TrainerService;
 import javafx.collections.FXCollections;
@@ -39,6 +40,7 @@ public class TrainingSessionsController extends ScrollPane {
     private Consumer<String> navigationHandler;
     private final TrainerService trainerService;
     private final TrainerScheduleService trainerScheduleService;
+    private final MemberService memberService;
     private List<Trainer> availableTrainers = Collections.emptyList();
     private VBox sessionsTableRows;
     private Label todaysSessionsValue;
@@ -58,10 +60,12 @@ public class TrainingSessionsController extends ScrollPane {
      */
     public TrainingSessionsController(Consumer<String> navigationHandler,
                                       TrainerService trainerService,
-                                      TrainerScheduleService trainerScheduleService) {
+                                      TrainerScheduleService trainerScheduleService,
+                                      MemberService memberService) {
         this.navigationHandler = navigationHandler;
         this.trainerService = trainerService;
         this.trainerScheduleService = trainerScheduleService;
+        this.memberService = memberService;
         initializeView();
     }
     
@@ -523,8 +527,10 @@ public class TrainingSessionsController extends ScrollPane {
         
         // Member selection
         ComboBox<MemberOption> memberBox = new ComboBox<>();
-        memberBox.setItems(FXCollections.observableArrayList(getSampleMembers()));
-        memberBox.setPromptText("Select member");
+        javafx.collections.ObservableList<MemberOption> memberOptions = FXCollections.observableArrayList(fetchMemberOptions());
+        memberBox.setItems(memberOptions);
+        memberBox.setPromptText(memberOptions.isEmpty() ? "No members available" : "Select member");
+        memberBox.setDisable(memberOptions.isEmpty());
         memberBox.setPrefWidth(300);
         memberBox.setConverter(new StringConverter<>() {
             @Override
@@ -980,14 +986,13 @@ public class TrainingSessionsController extends ScrollPane {
         alert.showAndWait();
     }
 
-    private List<MemberOption> getSampleMembers() {
-        return List.of(
-                new MemberOption("M1001", "John Smith"),
-                new MemberOption("M1002", "Sarah Johnson"),
-                new MemberOption("M1003", "Mike Chen"),
-                new MemberOption("M1004", "Emma Davis"),
-                new MemberOption("M1005", "Lisa Martinez")
-        );
+    private List<MemberOption> fetchMemberOptions() {
+        if (memberService == null) {
+            return Collections.emptyList();
+        }
+        return memberService.getAllMembers().stream()
+                .map(member -> new MemberOption(member.getMemberId(), member.getFullName()))
+                .collect(Collectors.toList());
     }
 
     private static class MemberOption {

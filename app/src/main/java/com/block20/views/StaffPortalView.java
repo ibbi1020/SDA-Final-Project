@@ -236,7 +236,8 @@ private void showRenewals() {
         TrainingSessionsController trainingSessionsController = new TrainingSessionsController(
                 this::handleNavigation,
                 this.trainerService,
-                this.trainerScheduleService);
+                this.trainerScheduleService,
+                this.memberService);
         setContent(trainingSessionsController);
     }
 

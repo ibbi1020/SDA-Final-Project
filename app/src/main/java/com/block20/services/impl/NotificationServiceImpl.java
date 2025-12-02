@@ -55,11 +55,21 @@ public class NotificationServiceImpl implements NotificationService {
         saveInternalAlert("Security Alert", "Suspended member " + name + ": " + issue);
     }
 
+    @Override
     public List<AppNotification> getNotifications() {
         return notificationRepo.getRecentNotifications();
     }
     
+    @Override
     public int getUnreadCount() {
         return notificationRepo.getUnreadCount();
+    }
+
+    @Override
+    public void markAsRead(String notificationId) {
+        if (notificationId == null || notificationId.isBlank()) {
+            return;
+        }
+        notificationRepo.markAsRead(notificationId);
     }
 }

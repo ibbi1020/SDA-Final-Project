@@ -221,7 +221,12 @@ public class MemberPortalView {
      * Show member dashboard
      */
     private void showDashboard() {
-        MemberDashboardController dashboard = new MemberDashboardController(memberId, memberName, this::handleNavigation, this.memberService);
+        MemberDashboardController dashboard = new MemberDashboardController(
+                memberId,
+                memberName,
+                this::handleNavigation,
+                this.memberService,
+                this.trainerScheduleService);
         setContent(dashboard);
     }
     

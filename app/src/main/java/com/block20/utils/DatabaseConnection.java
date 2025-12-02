@@ -1,5 +1,8 @@
 package com.block20.utils;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
@@ -7,7 +10,8 @@ import java.sql.Statement;
 
 public class DatabaseConnection {
 
-    private static final String URL = "jdbc:sqlite:block20_gym.db";
+    private static final Path DB_PATH = resolveDatabasePath();
+    private static final String URL = "jdbc:sqlite:" + DB_PATH.toString();
 
     public static Connection getConnection() {
         try {
@@ -15,6 +19,39 @@ public class DatabaseConnection {
         } catch (SQLException e) {
             System.err.println("DB Connection Failed: " + e.getMessage());
             return null;
+        }
+    }
+
+    private static Path resolveDatabasePath() {
+        String configured = System.getenv("BLOCK20_DB_PATH");
+        Path target = (configured != null && !configured.isBlank())
+            ? Paths.get(configured)
+            : locateProjectRoot().resolve("app").resolve("block20_gym.db");
+
+        Path absolute = target.toAbsolutePath();
+        ensureParentDirectory(absolute);
+        return absolute;
+    }
+
+    private static Path locateProjectRoot() {
+        Path current = Paths.get(System.getProperty("user.dir")).toAbsolutePath();
+        for (int depth = 0; depth < 8 && current != null; depth++) {
+            if (Files.exists(current.resolve("settings.gradle"))) {
+                return current;
+            }
+            current = current.getParent();
+        }
+        return Paths.get(System.getProperty("user.dir")).toAbsolutePath();
+    }
+
+    private static void ensureParentDirectory(Path absolute) {
+        try {
+            Path parent = absolute.getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
+        } catch (Exception e) {
+            System.err.println("Unable to prepare database directory: " + e.getMessage());
         }
     }
 
