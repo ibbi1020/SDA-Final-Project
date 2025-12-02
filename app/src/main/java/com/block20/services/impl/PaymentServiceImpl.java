@@ -7,6 +7,7 @@ import com.block20.models.PaymentReceipt;
 import com.block20.models.PaymentRequest;
 import com.block20.models.Transaction;
 import com.block20.repositories.PaymentPlanRepository;
+import com.block20.repositories.PaymentReceiptRepository;
 import com.block20.repositories.TransactionRepository;
 import com.block20.services.PaymentGateway;
 import com.block20.services.PaymentService;
@@ -22,14 +23,16 @@ public class PaymentServiceImpl implements PaymentService {
     private final TransactionRepository transactionRepository;
     private final PaymentPlanRepository paymentPlanRepository;
     private final PaymentGateway paymentGateway;
-    private final List<PaymentReceipt> receipts = new ArrayList<>();
+    private final PaymentReceiptRepository receiptRepository;
 
     public PaymentServiceImpl(TransactionRepository transactionRepository,
                               PaymentPlanRepository paymentPlanRepository,
-                              PaymentGateway paymentGateway) {
+                              PaymentGateway paymentGateway,
+                              PaymentReceiptRepository receiptRepository) {
         this.transactionRepository = transactionRepository;
         this.paymentPlanRepository = paymentPlanRepository;
         this.paymentGateway = paymentGateway;
+        this.receiptRepository = receiptRepository;
     }
 
     @Override
@@ -61,7 +64,7 @@ public class PaymentServiceImpl implements PaymentService {
             "SUCCESS",
             LocalDateTime.now()
         );
-        receipts.add(receipt);
+        receiptRepository.save(receipt);
         return receipt;
     }
 
@@ -70,9 +73,7 @@ public class PaymentServiceImpl implements PaymentService {
         if (memberId == null) {
             return Collections.emptyList();
         }
-        return receipts.stream()
-            .filter(receipt -> memberId.equalsIgnoreCase(receipt.getMemberId()))
-            .collect(java.util.stream.Collectors.toList());
+        return receiptRepository.findByMemberId(memberId);
     }
 
     @Override

@@ -281,21 +281,12 @@ private void showEquipmentMaintenance() {
      * Show a placeholder view for screens not yet implemented
      */
     private void showPlaceholder(String screenName) {
-        VBox placeholder = new VBox(20);
-        placeholder.getStyleClass().add("content-area");
-        placeholder.setAlignment(javafx.geometry.Pos.CENTER);
-
-        Label titleLabel = new Label(screenName);
-        titleLabel.getStyleClass().add("text-h1");
-
-        Label subtitleLabel = new Label("This screen is under construction");
-        subtitleLabel.getStyleClass().add("text-body");
-
-        Label instructionLabel = new Label("Click on 'Dashboard' in the sidebar to return");
-        instructionLabel.getStyleClass().add("text-caption");
-
-        placeholder.getChildren().addAll(titleLabel, subtitleLabel, instructionLabel);
-        setContent(placeholder);
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle("Module Coming Soon");
+        alert.setHeaderText(screenName + " is being finished");
+        alert.setContentText("Returning you to the dashboard so you can keep working.");
+        alert.showAndWait();
+        showDashboard();
     }
 
     /**

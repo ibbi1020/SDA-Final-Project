@@ -78,9 +78,67 @@ public static void initializeDatabase() {
             // 4. EQUIPMENT (Existing)
             stmt.execute("CREATE TABLE IF NOT EXISTS equipment (equipment_id TEXT PRIMARY KEY, name TEXT, category TEXT, status TEXT, purchase_date TEXT);");
 
+            // Enable FK constraints for this session
+            stmt.execute("PRAGMA foreign_keys = ON;");
+
             // 5. AUDIT & NOTIFS (Existing)
             stmt.execute("CREATE TABLE IF NOT EXISTS audit_logs (log_id TEXT PRIMARY KEY, target_id TEXT, action TEXT, details TEXT, timestamp TEXT);");
             stmt.execute("CREATE TABLE IF NOT EXISTS notifications (id TEXT PRIMARY KEY, title TEXT, message TEXT, timestamp TEXT, is_read INTEGER);");
+
+            // 6. PAYMENTS - PLANS & RECEIPTS
+            String createPaymentPlans = """
+                CREATE TABLE IF NOT EXISTS payment_plans (
+                    plan_id TEXT PRIMARY KEY,
+                    member_id TEXT NOT NULL,
+                    total_amount REAL NOT NULL,
+                    created_on TEXT NOT NULL,
+                    status TEXT NOT NULL
+                );
+            """;
+            stmt.execute(createPaymentPlans);
+
+            String createPlanInstallments = """
+                CREATE TABLE IF NOT EXISTS payment_plan_installments (
+                    installment_id TEXT PRIMARY KEY,
+                    plan_id TEXT NOT NULL,
+                    due_date TEXT NOT NULL,
+                    amount REAL NOT NULL,
+                    paid INTEGER NOT NULL,
+                    paid_on TEXT,
+                    FOREIGN KEY(plan_id) REFERENCES payment_plans(plan_id) ON DELETE CASCADE
+                );
+            """;
+            stmt.execute(createPlanInstallments);
+
+            String createGatewayReceipts = """
+                CREATE TABLE IF NOT EXISTS payment_gateway_receipts (
+                    receipt_id TEXT PRIMARY KEY,
+                    member_id TEXT,
+                    method TEXT,
+                    amount REAL,
+                    reference TEXT,
+                    status TEXT,
+                    message TEXT,
+                    card_last4 TEXT,
+                    created_at TEXT
+                );
+            """;
+            stmt.execute(createGatewayReceipts);
+
+            String createPaymentReceipts = """
+                CREATE TABLE IF NOT EXISTS payment_receipts (
+                    transaction_id TEXT PRIMARY KEY,
+                    member_id TEXT NOT NULL,
+                    description TEXT,
+                    subtotal REAL NOT NULL,
+                    tax_amount REAL NOT NULL,
+                    method TEXT,
+                    reference_code TEXT,
+                    status TEXT,
+                    processed_at TEXT NOT NULL
+                );
+            """;
+            stmt.execute(createPaymentReceipts);
 
             // --- NEW: TRAINER TABLES (MATCHING YOUR PARTNER'S MODELS) ---
 

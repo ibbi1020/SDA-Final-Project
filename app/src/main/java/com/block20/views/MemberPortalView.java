@@ -257,8 +257,10 @@ private void showMembership() {
      * Show payments and billing
      */
  private void showPayments() {
-    // FIX: Changed paymentService to memberService
-    MemberPaymentsController paymentsController = new MemberPaymentsController(memberId, this.memberService);
+    MemberPaymentsController paymentsController = new MemberPaymentsController(
+            memberId,
+            this.memberService,
+            this.paymentService);
     setContent(paymentsController);
 }
     /**
@@ -282,18 +284,12 @@ private void showAttendance() {
      * Show placeholder for screens under construction
      */
     private void showPlaceholder(String screenName) {
-        VBox placeholder = new VBox(20);
-        placeholder.getStyleClass().add("content-area");
-        placeholder.setAlignment(Pos.CENTER);
-        
-        Label titleLabel = new Label(screenName);
-        titleLabel.getStyleClass().add("text-h1");
-        
-        Label subtitleLabel = new Label("This screen is under construction");
-        subtitleLabel.getStyleClass().add("text-body");
-        
-        placeholder.getChildren().addAll(titleLabel, subtitleLabel);
-        setContent(placeholder);
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle("Coming Soon");
+        alert.setHeaderText(screenName + " is being finished");
+        alert.setContentText("Hang tight—this module will arrive soon. Returning you to the dashboard.");
+        alert.showAndWait();
+        showDashboard();
     }
     
     /**

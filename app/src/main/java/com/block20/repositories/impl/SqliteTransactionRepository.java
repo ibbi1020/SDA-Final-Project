@@ -28,15 +28,17 @@ public class SqliteTransactionRepository implements TransactionRepository {
         List<Transaction> list = new ArrayList<>();
         try (Connection conn = DatabaseConnection.getConnection(); Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery("SELECT * FROM transactions")) {
             while (rs.next()) {
-                // Note: This assumes your Transaction Model has this constructor. 
-                // If not, update Transaction.java to accept Date!
-                // For now, we use the standard constructor and assume date is NOW (limitation of current model).
-                // To fix properly: Add setDate() to Transaction model.
+                String dateValue = rs.getString("date");
+                LocalDate storedDate = null;
+                if (dateValue != null && !dateValue.isBlank()) {
+                    storedDate = LocalDate.parse(dateValue);
+                }
                 Transaction t = new Transaction(
-                    rs.getString("transaction_id"), 
-                    rs.getString("member_id"), 
-                    rs.getString("type"), 
-                    rs.getDouble("amount")
+                    rs.getString("transaction_id"),
+                    rs.getString("member_id"),
+                    rs.getString("type"),
+                    rs.getDouble("amount"),
+                    storedDate
                 );
                 list.add(t);
             }

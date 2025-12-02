@@ -56,8 +56,8 @@ public class App extends Application {
         AuditRepository auditRepo = new SqliteAuditRepository();
         NotificationRepository notifRepo = new SqliteNotificationRepository();
         
-        // Keep in-memory for now (Low priority)
-        PaymentPlanRepository paymentPlanRepo = new PaymentPlanRepositoryImpl();
+        PaymentPlanRepository paymentPlanRepo = new SqlitePaymentPlanRepository();
+        PaymentReceiptRepository paymentReceiptRepo = new SqlitePaymentReceiptRepository();
 
         // ============================================================
         // 2. INITIALIZE SERVICES
@@ -65,14 +65,19 @@ public class App extends Application {
         AuditService auditService = new AuditServiceImpl(auditRepo);
         this.notificationService = new NotificationServiceImpl(notifRepo); // Class var
         this.exportService = new ExportServiceImpl();                      // Class var
-        PaymentGateway paymentGateway = new MockPaymentGateway();
+        PaymentGateway paymentGateway = new LocalPaymentGateway();
 
         // Inject Dependencies
         this.memberService = new MemberServiceImpl(memberRepo, attendanceRepo, transactionRepo, auditService, notificationService);
         this.equipmentService = new EquipmentServiceImpl(equipmentRepo);
         this.trainerService = new TrainerServiceImpl(trainerRepo);
         this.trainerScheduleService = new TrainerScheduleServiceImpl(trainerService, trainerAvailRepo, trainingSessionRepo);
-        this.paymentService = new PaymentServiceImpl(transactionRepo, paymentPlanRepo, paymentGateway);
+        this.paymentService = new PaymentServiceImpl(
+            transactionRepo,
+            paymentPlanRepo,
+            paymentGateway,
+            paymentReceiptRepo
+        );
 
         // ============================================================
         // 3. SEED ALL DATA

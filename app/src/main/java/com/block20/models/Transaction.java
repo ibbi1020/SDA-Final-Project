@@ -10,11 +10,19 @@ public class Transaction {
     private LocalDate date;
 
     public Transaction(String transactionId, String memberId, String type, double amount) {
+        this(transactionId, memberId, type, amount, LocalDate.now());
+    }
+
+    public Transaction(String transactionId,
+                       String memberId,
+                       String type,
+                       double amount,
+                       LocalDate date) {
         this.transactionId = transactionId;
         this.memberId = memberId;
         this.type = type;
         this.amount = amount;
-        this.date = LocalDate.now();
+        this.date = (date != null) ? date : LocalDate.now();
     }
 
     // Getters
